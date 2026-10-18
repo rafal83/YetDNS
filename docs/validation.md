@@ -31,3 +31,12 @@ Ces contrôles valident les fonctions décrites, sans constituer une mesure comp
 - La page a été affichée dans Chromium au format mobile. L'option et les règles de test ont été restaurées ensuite. Aucun test ne prétend fournir de page d'interception HTTPS.
 - Les builds refusent désormais une frame C++ supérieure à 6 144 octets, pour détecter les gros objets locaux qui pourraient dépasser la pile de démarrage.
 - Dernier reflash/redémarrage : les cinq règles sauvegardées par le propriétaire, les paramètres DNS et les choix d'applications ont été conservés. Les 232 588 domaines ont été rechargés sans téléchargement. Un nom redirigé reste isolé de l'administration même après désactivation de l'option HTTP, pendant l'expiration des caches clients.
+
+## Journal, diagnostic navigateur et menu dans YetDNS 0.4
+
+- Journal : le mode « uniquement les blocages » conserve les blocages existants et retire les autres entrées. Sur la carte, 36 requêtes autorisées successives ne remplacent pas le blocage conservé. Le choix est mémorisé en NVS et reste actif après reflash.
+- Diagnostic : tests Node réussis pour les témoins, les délais, l'annulation, les restrictions CSP, la concurrence bornée, les listes personnalisées et l'export HTML sans script.
+- Chromium avec réponses contrôlées, depuis l'onglet embarqué : 26 sondes HEAD exécutées par le navigateur, sans cookies ni référent, catégories et exports HTML/JSON vérifiés. Trois témoins indisponibles interrompent les sondes et produisent un résultat non concluant.
+- Un test réel depuis la page hébergée sur l'ESP a terminé les 26 sondes avec trois témoins accessibles. Le rapport reste un constat d'accessibilité du navigateur, sans preuve de la cause DNS des échecs. Rapports privés conservés hors Git.
+- Menu regroupé en cinq onglets, avec quatre sections dépliables dans Filtrage. Chromium confirme une seule ligne à 1 180, 1 000 et 390 pixels, les panneaux exclusifs, tous les formulaires accessibles et aucune erreur JavaScript. Sur mobile, les onglets défilent horizontalement.
+- Builds N16R8 et générique 8 Mo réussis ; firmware final transféré et vérifié sur la carte. Trois suites C++ ASan/UBSan et cinq tests Python réussis. Les 232 588 domaines ont été rechargés sans téléchargement ; l'intervalle utilisateur de 720 heures est conservé.

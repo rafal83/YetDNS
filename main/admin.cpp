@@ -58,6 +58,8 @@ void load_settings() {
     }
     uint8_t enabled = 1;
     nvs_get_u8(nvs, "blocking", &enabled); blocking = enabled != 0;
+    uint8_t only_blocks = 1;
+    nvs_get_u8(nvs, "log_only", &only_blocks); set_log_blocked_only(only_blocks != 0);
     nvs_close(nvs);
     runtime_init();
     ESP_ERROR_CHECK(apps_init());
@@ -123,7 +125,7 @@ static esp_err_t dashboard(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
-    httpd_resp_set_hdr(req, "Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
+    httpd_resp_set_hdr(req, "Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
     return httpd_resp_send(req, reinterpret_cast<const char *>(html_start), html_end - html_start);
 }
 static esp_err_t get_stats(httpd_req_t *req) {
@@ -150,6 +152,7 @@ static esp_err_t get_stats(httpd_req_t *req) {
     cJSON_AddNumberToObject(json, "cache_capacity", CONFIG_YETDNS_CACHE_ENTRIES);
     cJSON_AddNumberToObject(json, "pending_capacity", CONFIG_YETDNS_PENDING);
     cJSON_AddBoolToObject(json, "query_logging", query_logging.load());
+    cJSON_AddBoolToObject(json, "log_blocked_only", log_blocked_only.load());
     return json_send(req, json);
 }
 static esp_err_t settings(httpd_req_t *req) {
@@ -316,6 +319,24 @@ static esp_err_t erase_logs(httpd_req_t *req) {
     if (!authorized(req)) return ESP_OK;
     clear_logs(); return httpd_resp_sendstr(req, "{}");
 }
+static esp_err_t configure_logs(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    cJSON *json = read_json(req, 128); if (!json) return ESP_OK;
+    auto *value = cJSON_GetObjectItemCaseSensitive(json, "blocked_only");
+    if (!cJSON_IsObject(json) || !cJSON_IsBool(value)) {
+        cJSON_Delete(json); return error(req, "400 Bad Request", "blocked_only must be boolean");
+    }
+    bool only_blocks = cJSON_IsTrue(value); cJSON_Delete(json);
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("yetdns", NVS_READWRITE, &handle);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(handle, "log_only", only_blocks);
+        if (err == ESP_OK) err = nvs_commit(handle);
+        nvs_close(handle);
+    }
+    if (err != ESP_OK) return error(req, "500 Internal Server Error", esp_err_to_name(err));
+    set_log_blocked_only(only_blocks); return httpd_resp_sendstr(req, "{}");
+}
 static esp_err_t get_mqtt(httpd_req_t *req) {
     auto cfg = mqtt_config(); auto *json = cJSON_CreateObject();
     cJSON_AddBoolToObject(json, "enabled", cfg.enabled); cJSON_AddBoolToObject(json, "connected", mqtt_connected());
@@ -412,6 +433,23 @@ static esp_err_t blocked_page(httpd_req_t *req) {
     return httpd_resp_send(req, reinterpret_cast<const char *>(page_start), page_end - page_start);
 }
 struct Route { const char *path; httpd_method_t method; esp_err_t (*handler)(httpd_req_t *); };
+static esp_err_t diagnostic_page(httpd_req_t *req) {
+    extern const uint8_t diagnostic_html_start[] asm("_binary_diagnostic_html_start");
+    extern const uint8_t diagnostic_html_end[] asm("_binary_diagnostic_html_end");
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    httpd_resp_set_hdr(req, "Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'self'; base-uri 'none'");
+    return httpd_resp_send(req, reinterpret_cast<const char *>(diagnostic_html_start), diagnostic_html_end - diagnostic_html_start);
+}
+static esp_err_t diagnostic_script(httpd_req_t *req) {
+    extern const uint8_t diagnostic_js_start[] asm("_binary_diagnostic_js_start");
+    extern const uint8_t diagnostic_js_end[] asm("_binary_diagnostic_js_end");
+    httpd_resp_set_type(req, "application/javascript; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    return httpd_resp_send(req, reinterpret_cast<const char *>(diagnostic_js_start), diagnostic_js_end - diagnostic_js_start);
+}
 static esp_err_t dispatch(httpd_req_t *req) {
     // Old DNS answers may still point here after the option is disabled.
     if (!local_admin_host(req)) return blocked_page(req);
@@ -422,7 +460,7 @@ static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t) {
     return error(req, "404 Not Found", "Not found");
 }
 esp_err_t admin_start() {
-    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.max_uri_handlers = 18;
+    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.max_uri_handlers = 24;
     cfg.stack_size = 8192; cfg.lru_purge_enable = true; cfg.max_open_sockets = 3;
     cfg.recv_wait_timeout = 3; cfg.send_wait_timeout = 3;
     httpd_handle_t server;
@@ -430,6 +468,8 @@ esp_err_t admin_start() {
     if (err != ESP_OK) return err;
     static const Route routes[] = {
         {"/", HTTP_GET, dashboard},
+        {"/diagnostic", HTTP_GET, diagnostic_page},
+        {"/diagnostic.js", HTTP_GET, diagnostic_script},
         {"/api/stats", HTTP_GET, get_stats},
         {"/api/settings", HTTP_POST, settings},
         {"/api/cache/flush", HTTP_POST, clear_cache},
@@ -437,6 +477,7 @@ esp_err_t admin_start() {
         {"/api/rules", HTTP_PUT, put_rules},
         {"/api/logs", HTTP_GET, get_logs},
         {"/api/logs/clear", HTTP_POST, erase_logs},
+        {"/api/logs/config", HTTP_PUT, configure_logs},
         {"/api/config", HTTP_GET, get_config},
         {"/api/config", HTTP_PUT, put_config},
         {"/api/lists", HTTP_GET, get_lists},

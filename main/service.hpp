@@ -13,6 +13,7 @@ struct Counters {
 struct LogEntry { char domain[254]; uint32_t client, elapsed_us; uint16_t type; char result[12]; };
 extern Counters stats;
 extern std::atomic<bool> blocking, flush_cache;
+extern std::atomic<bool> log_blocked_only;
 extern std::atomic<uint32_t> subnet_ip, subnet_mask;
 extern Blocklist blocklist;
 extern Rules rules;
@@ -23,4 +24,5 @@ void load_settings();
 esp_err_t save_rules(const Rules &value);
 esp_err_t save_blocking(bool value);
 size_t copy_logs(LogEntry *out, size_t capacity);
+void set_log_blocked_only(bool value);
 } // namespace yetdns

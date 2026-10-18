@@ -65,9 +65,14 @@ def main():
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(executable_path=args.chrome, headless=True)
             page = browser.new_page(viewport={'width': 1180, 'height': 1000})
+            def open_filter(group):
+                page.locator('[data-panel="filtering"]').click()
+                detail = page.locator('#filter-' + group)
+                if detail.get_attribute('open') is None:
+                    detail.locator(':scope > summary').click()
             page.on('pageerror', lambda e: errors.append(str(e)))
             page.goto('http://' + args.ip, wait_until='domcontentloaded')
-            page.locator('[data-panel="applications"]').click()
+            open_filter('applications')
             expect(page.locator('#app-cards label')).to_have_count(43)
             page.locator('#apps-client').fill(client); page.locator('#apps-load').click()
             expect(page.locator('#apps-scope')).to_contain_text('Appareil ' + client)
@@ -79,7 +84,7 @@ def main():
             query('www.youtube.com'); query('r1.googlevideo.com'); query('www.youtube.com', 28)
             query('www.youtube.com', tcp=True)
             for kind, domain in [('allow', 'www.youtube.com'), ('deny', 'yetdns-app-test.invalid')]:
-                page.locator('[data-panel="' + ('allowlist' if kind == 'allow' else 'denylist') + '"]').click()
+                open_filter('exceptions')
                 page.locator('#' + kind + '-client').fill(client); page.locator('#' + kind + '-load').click()
                 expect(page.locator('#' + kind + '-scope')).to_contain_text('Appareil ' + client)
                 field = page.locator('#' + kind + '-domains')
@@ -91,7 +96,7 @@ def main():
                 expected_rules = api('rules')
                 assert all(rule in expected_rules for rule in original_rules), 'Existing rules were lost'
                 query(domain, blocked=kind == 'deny')
-            page.locator('[data-panel="applications"]').click()
+            open_filter('applications')
             page.locator('#apps-search').fill('youtube')
             assert page.locator('#app-cards label:visible').count() == 1
             page.screenshot(path='build-device/applications-v03.png', full_page=True)

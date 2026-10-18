@@ -1,30 +1,55 @@
-# YetDNS 0.3 sur ESP32
+# YetDNS 0.4 sur ESP32
 
 Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Profil 8 Mo également disponible. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
 
 ## Utilisation
 
-Ouvrir l'adresse IP affichée sur le port série (carte actuellement déployée : `http://192.168.1.168`). L'interface propose huit onglets :
+Ouvrir l'adresse IP affichée sur le port série (carte actuellement déployée : `http://192.168.1.168`). Le menu réunit cinq onglets sur une ligne : **Filtrage**, **DNS avancé**, **Journal**, **Diagnostic** et **Home Assistant**. Sur petit écran, il défile horizontalement. Filtrage rassemble les listes automatiques, les applications, les listes blanche/noire et les règles locales dans quatre sections dépliables.
+
+Fonctions disponibles :
 
 - **Listes de blocage** : HaGeZi Light, HaGeZi Normal, StevenBlack et URL HTTPS personnalisées ; jusqu'à six sources, activation individuelle, actualisation manuelle et intervalle automatique de 1 à 720 heures.
 - **Applications** : catalogue de 43 services (YouTube, TikTok, Instagram, jeux, messageries, streaming…), recherche et catégories. Sélection globale ou blocages supplémentaires par IPv4, avec 16 profils. Les choix persistent en NVS sans téléchargement au démarrage.
-- **Liste blanche / Liste noire** : domaines autorisés ou bloqués, un par ligne, globalement ou pour une IP. Les deux onglets partagent les 32 règles locales avec les réécritures et conservent les règles des autres périmètres. Le JSON reste accessible dans Règles locales.
+- **Liste blanche / Liste noire** : domaines autorisés ou bloqués, un par ligne, globalement ou pour une IP. Les deux listes partagent les 32 règles locales avec les réécritures et conservent les règles des autres périmètres. Le JSON reste accessible dans Règles locales.
 - **Paramètres avancés** : résolveurs IPv4 principal/secondaire, UDP ou DoH, URL HTTPS, timeout de 500 à 10 000 ms, limite de 0 à 1 000 requêtes/s/appareil, restriction au sous-réseau local et journalisation.
 - **Règles locales** : 32 exceptions, blocages ou réécritures IPv4, globales ou par IP client. L'appareil a priorité sur les règles globales ; le suffixe le plus précis gagne dans chaque groupe.
 - **Journal** : les 32 dernières requêtes, leur appareil, leur résultat et leur durée ; effacement manuel.
+- **Diagnostic** : test exécuté dans le navigateur de l'appareil qui ouvre la page, liste personnalisable et rapports HTML/JSON ; aucun changement du DNS utilisé.
 - **Home Assistant** : broker MQTT, identifiants, préfixe de découverte, fréquence de publication et état de connexion.
 
 Les réglages sont persistants et s'appliquent sans reflash. Le journal garde uniquement les **32 dernières requêtes en RAM** ; son contenu disparaît au redémarrage et lors de sa désactivation. Il peut être effacé depuis l'interface.
 
-L'onglet Règles locales contient un exemple expliqué pour `192.168.1.50` : `client` limite une règle à cet appareil, `deny` bloque, `allow` autorise malgré les listes et `rewrite` renvoie l'IPv4 définie dans `address`. Sans `client`, la règle est globale. Les règles couvrent le domaine et ses sous-domaines. Réserver l'IP par DHCP et faire interroger l'ESP directement : si un routeur relaie toutes les requêtes sous sa propre IP, le filtrage ne peut pas distinguer les appareils.
+Dans Journal, **Conserver uniquement les blocages** est activé par défaut. Ce choix est enregistré séparément en NVS : seuls les résultats `blocked` entrent alors dans le journal, y compris les blocages sur alias. Les requêtes autorisées, erreurs et limitations ne remplacent pas les 32 derniers blocages. Activer ce mode retire les autres entrées déjà présentes tout en conservant les blocages. Décocher la case reprend l'enregistrement de toutes les requêtes.
 
-Pour les trois nouveaux onglets, laisser l'IP vide pour tous les appareils, ou saisir une IPv4 puis cliquer sur « Charger ce périmètre ». Modifier la sélection ou les domaines puis enregistrer. La recherche d'applications masque les lignes sans effacer les choix. Une sélection par appareil ajoute des blocages à ceux du périmètre global ; pour une exception, utiliser la liste blanche. Les règles locales sont évaluées avant les applications, puis les listes téléchargées. Les alias CNAME/DNAME sont également contrôlés.
+La section Règles locales contient un exemple expliqué pour `192.168.1.50` : `client` limite une règle à cet appareil, `deny` bloque, `allow` autorise malgré les listes et `rewrite` renvoie l'IPv4 définie dans `address`. Sans `client`, la règle est globale. Les règles couvrent le domaine et ses sous-domaines. Réserver l'IP par DHCP et faire interroger l'ESP directement : si un routeur relaie toutes les requêtes sous sa propre IP, le filtrage ne peut pas distinguer les appareils.
+
+Dans Applications et dans les listes blanche/noire, laisser l'IP vide pour tous les appareils, ou saisir une IPv4 puis cliquer sur « Charger ce périmètre ». Modifier la sélection ou les domaines puis enregistrer. La recherche d'applications masque les lignes sans effacer les choix. Une sélection par appareil ajoute des blocages à ceux du périmètre global ; pour une exception, utiliser la liste blanche. Les règles locales sont évaluées avant les applications, puis les listes téléchargées. Les alias CNAME/DNAME sont également contrôlés.
 
 Le catalogue embarqué est un instantané de [nextdns/services](https://github.com/nextdns/services), sous [licence MIT](data/nextdns-services-LICENSE.txt) ; sa révision est enregistrée dans `data/applications.json`. Ses 403 suffixes de domaines distincts sont recherchés exactement dans un index trié en flash. Le chemin DNS ne construit aucune règle et n'alloue pas de mémoire pour les applications. Le catalogue est actualisable avant compilation avec `python tools/update_app_catalog.py`, ou régénérable hors ligne avec `--offline`. Ses positions d'identifiants sont stables pour préserver les choix enregistrés. Ce blocage concerne les services entiers, peut affecter des fonctions partagées, et ne garantit pas de bloquer un VPN, un DNS externe ou une connexion déjà ouverte.
 
 L'option **Page de blocage HTTP**, dans DNS avancé, est désactivée par défaut. Une fois activée, les réponses A bloquées renvoient l'IPv4 de l'ESP et celui-ci affiche « Accès bloqué par YetDNS » avec un statut HTTP 403, quel que soit le chemin demandé. Les hôtes redirigés n'accèdent pas à l'administration ; celle-ci reste disponible par l'IP de l'ESP ou `yetdns.local`. Les réponses AAAA restent `::`. HTTPS n'affiche pas cette page : une erreur de connexion ou de certificat apparaît, car le DNS seul ne permet pas d'intercepter une connexion chiffrée. Les réponses DNS locales ont un TTL de 60 secondes ; un appareil peut conserver temporairement l'ancien mode après changement.
 
 Pour utiliser le filtrage sur le LAN, réserver l'IP de l'ESP dans le DHCP du routeur et la distribuer comme DNS (option DHCP 6). Un second DNS public peut contourner le filtre. Le serveur écoute sur IPv4 et traite aussi les enregistrements AAAA ; l'écoute IPv6 n'est pas encore implémentée. Vérifier les DNS IPv6 annoncés par le routeur et les appareils utilisant leur propre DoH/DoT.
+
+## Test de la connexion depuis le navigateur
+
+Ouvrir l'onglet **Diagnostic**, ou directement `http://192.168.1.168/diagnostic`, puis lancer le test. Il utilise la connexion effective du navigateur, y compris son éventuel DNS sécurisé, proxy, VPN et ses extensions. Le DNS de l'ESP n'est pas imposé. L'ESP héberge uniquement les fichiers de l'interface et ne réalise aucune sonde à la place du PC.
+
+Le jeu par défaut contient 26 sondes : trois témoins légitimes, douze domaines publicitaires, dix domaines de traçage/télémétrie et un témoin synthétique de sécurité Cloudflare. Contrôle parental synthétique et réseaux sociaux sont facultatifs. Une liste personnalisée peut être collée ou importée depuis un fichier local ; 500 sondes maximum au total. Le fichier reste dans le navigateur. Le test ne change ni les règles de filtrage ni le DNS système.
+
+Les requêtes sont des HTTPS HEAD `no-cors`, sans cookies ni référent, avec redirections HTTPS suivies par le navigateur. Aucun contenu de page n'est affiché ou exécuté. Les échecs réseau sont classés « filtrage possible », les délais dépassés et restrictions de page restent inconnus. Une panne générale, des témoins inaccessibles ou un arrêt partiel ne donnent pas un pourcentage de protection. Le rapport distingue les catégories et ne produit pas une note globale de sécurité : une extension, une erreur TLS ou un serveur hors ligne peuvent ressembler à un blocage DNS. Les réponses DNS brutes, le résolveur réel, la couverture A/AAAA et SafeSearch ne sont pas identifiables par cette méthode.
+
+Les boutons exportent un **HTML autonome sans script ni requête réseau** et un JSON détaillé. Depuis l'ESP, les résultats restent dans le navigateur jusqu'à leur téléchargement ; ils ne sont envoyés à aucun serveur de test. Les domaines sondés voient nécessairement les connexions et l'IP de sortie. Les caches DNS du navigateur/système peuvent retarder l'effet d'un changement de configuration.
+
+Pour utiliser exactement le même outil sans ESP, avec Python standard sur le PC :
+
+```powershell
+python tools/dns_protection_test.py --run --once
+```
+
+Le script ouvre le navigateur par défaut sur un serveur **local `127.0.0.1`**, lance les sondes côté navigateur, puis enregistre HTML et JSON dans `build-reports/` et s'arrête. `--output DOSSIER` choisit le dossier, `--no-open` affiche seulement l'URL et l'absence de `--run` laisse choisir les catégories avant le lancement. Ce mode transmet le rapport uniquement au serveur local du PC pour écrire les fichiers ; il ne dépend pas de l'ESP ni d'une API de diagnostic externe.
+
+La méthode de [dnsfiltertest.com](https://www.dnsfiltertest.com/my-connection) a été étudiée ; voir [la note de comparaison](docs/dnsfiltertest-review.md). Les sondes sont une implémentation originale.
 
 ## Listes automatiques
 
@@ -95,6 +120,7 @@ L'administration HTTP reste limitée à un LAN de confiance et n'utilise plus d'
 | `/api/apps` | GET / PUT | Catalogue et profils ; PUT `{"client":"192.168.1.50","blocked":["youtube","tiktok"]}`, client vide/absent pour tous |
 | `/api/logs` | GET | Journal en RAM |
 | `/api/logs/clear` | POST | Effacement du journal |
+| `/api/logs/config` | PUT | `{"blocked_only":true}` pour ne conserver que les blocages |
 | `/api/cache/flush` | POST | Purge du cache |
 
 ## Tests et mesures
