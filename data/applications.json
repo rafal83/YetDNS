@@ -1,0 +1,711 @@
+{
+  "source": "https://github.com/nextdns/services",
+  "revision": "4b73ad9798dc4f75842c9e21c1c45b04be524412",
+  "license": "MIT",
+  "services": [
+    {
+      "id": "9gag",
+      "name": "9GAG",
+      "category": "Social",
+      "domains": [
+        "9cache.com",
+        "9gag.com"
+      ]
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "category": "Achats",
+      "domains": [
+        "amazon.ae",
+        "amazon.ca",
+        "amazon.cn",
+        "amazon.co.jp",
+        "amazon.co.uk",
+        "amazon.com",
+        "amazon.com.au",
+        "amazon.com.br",
+        "amazon.com.mx",
+        "amazon.com.tr",
+        "amazon.de",
+        "amazon.es",
+        "amazon.fr",
+        "amazon.in",
+        "amazon.it",
+        "amazon.nl",
+        "amazon.pl",
+        "amazon.sa",
+        "amazon.sg",
+        "amzn.ae",
+        "amzn.com",
+        "amzn.in",
+        "amzn.sg"
+      ]
+    },
+    {
+      "id": "bereal",
+      "name": "BeReal",
+      "category": "Social",
+      "domains": [
+        "bere.al",
+        "bereal.com"
+      ]
+    },
+    {
+      "id": "blizzard",
+      "name": "Battle.net / Blizzard",
+      "category": "Jeux",
+      "domains": [
+        "battle.net",
+        "blizzard.com"
+      ]
+    },
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "category": "IA",
+      "domains": [
+        "chat.openai.com"
+      ]
+    },
+    {
+      "id": "dailymotion",
+      "name": "Dailymotion",
+      "category": "Vidéo",
+      "domains": [
+        "dailymotion.com",
+        "dm-event.net",
+        "dmcdn.net"
+      ]
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "category": "Communication",
+      "domains": [
+        "discord.com",
+        "discord.gg",
+        "discord.media",
+        "discordapp.com",
+        "discordapp.net"
+      ]
+    },
+    {
+      "id": "disneyplus",
+      "name": "Disney+",
+      "category": "Vidéo",
+      "domains": [
+        "disney-plus.net",
+        "disneyplus.com",
+        "disneyplus.disney.co.jp",
+        "dssott.com",
+        "dssott.com.c.footprint.net",
+        "search-api-disney.bamgrid.com"
+      ]
+    },
+    {
+      "id": "ebay",
+      "name": "eBay",
+      "category": "Achats",
+      "domains": [
+        "ebay-us.com",
+        "ebay.at",
+        "ebay.be",
+        "ebay.ca",
+        "ebay.ch",
+        "ebay.co.uk",
+        "ebay.com",
+        "ebay.com.au",
+        "ebay.com.cn",
+        "ebay.com.hk",
+        "ebay.com.my",
+        "ebay.com.sg",
+        "ebay.de",
+        "ebay.es",
+        "ebay.fr",
+        "ebay.ie",
+        "ebay.in",
+        "ebay.it",
+        "ebay.nl",
+        "ebay.ph",
+        "ebay.pl",
+        "ebaycdn.net",
+        "ebaydesc.com",
+        "ebayimg.com",
+        "ebayinc.com",
+        "ebayrtm.com",
+        "ebaystatic.com"
+      ]
+    },
+    {
+      "id": "facebook",
+      "name": "Facebook",
+      "category": "Social",
+      "domains": [
+        "api.facebook.com",
+        "b-www.facebook.com",
+        "fb.com",
+        "fb.me",
+        "gateway.facebook.com",
+        "lithium.facebook.com",
+        "lookaside.facebook.com",
+        "m.facebook.com",
+        "www.facebook.com"
+      ]
+    },
+    {
+      "id": "fortnite",
+      "name": "Fortnite",
+      "category": "Jeux",
+      "domains": [
+        "epicgames.com"
+      ]
+    },
+    {
+      "id": "google-chat",
+      "name": "Google Chat",
+      "category": "Communication",
+      "domains": [
+        "chat.google.com"
+      ]
+    },
+    {
+      "id": "hbomax",
+      "name": "HBO Max",
+      "category": "Vidéo",
+      "domains": [
+        "hbomax.com",
+        "max.com"
+      ]
+    },
+    {
+      "id": "hulu",
+      "name": "Hulu",
+      "category": "Vidéo",
+      "domains": [
+        "hulu.com"
+      ]
+    },
+    {
+      "id": "imgur",
+      "name": "Imgur",
+      "category": "Social",
+      "domains": [
+        "imgur.com"
+      ]
+    },
+    {
+      "id": "instagram",
+      "name": "Instagram",
+      "category": "Social",
+      "domains": [
+        "cdninstagram.com",
+        "instagram.com"
+      ]
+    },
+    {
+      "id": "leagueoflegends",
+      "name": "League of Legends",
+      "category": "Jeux",
+      "domains": [
+        "leagueoflegends.com",
+        "lol.riotgames.com"
+      ]
+    },
+    {
+      "id": "mastodon",
+      "name": "Mastodon",
+      "category": "Social",
+      "domains": [
+        "alive.bar",
+        "ani.work",
+        "brighteon.social",
+        "c.im",
+        "counter.social",
+        "fedibird.com",
+        "fosstodon.org",
+        "gc2.jp",
+        "hachyderm.io",
+        "home.social",
+        "infosec.exchange",
+        "joinmastodon.org",
+        "kolektiva.social",
+        "loforo.com",
+        "m.cmx.im",
+        "mamot.fr",
+        "mas.to",
+        "masthead.social",
+        "masto.ai",
+        "mastodon.art",
+        "mastodon.au",
+        "mastodon.cloud",
+        "mastodon.lol",
+        "mastodon.nl",
+        "mastodon.online",
+        "mastodon.scot",
+        "mastodon.sdf.org",
+        "mastodon.social",
+        "mastodon.top",
+        "mastodon.uno",
+        "mastodon.world",
+        "mastodon.xyz",
+        "mastodonapp.uk",
+        "meatbag.app",
+        "mindly.social",
+        "mstdn.ca",
+        "mstdn.jp",
+        "mstdn.party",
+        "mstdn.social",
+        "nerdculture.de",
+        "ohai.social",
+        "pawoo.net",
+        "pixelfed.social",
+        "poa.st",
+        "qoto.org",
+        "sfba.social",
+        "techhub.social",
+        "tilde.zone",
+        "toot.community",
+        "troet.cafe",
+        "universeodon.com"
+      ]
+    },
+    {
+      "id": "messenger",
+      "name": "Messenger",
+      "category": "Communication",
+      "domains": [
+        "chat-e2ee-mini.facebook.com",
+        "edge-chat.facebook.com",
+        "messenger.com"
+      ]
+    },
+    {
+      "id": "minecraft",
+      "name": "Minecraft",
+      "category": "Jeux",
+      "domains": [
+        "minecraft.net",
+        "minecraftservices.com",
+        "mojang.com"
+      ]
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "category": "Vidéo",
+      "domains": [
+        "netflix.com",
+        "netflix.net",
+        "nflxext.com",
+        "nflximg.net",
+        "nflxso.net",
+        "nflxvideo.net"
+      ]
+    },
+    {
+      "id": "pinterest",
+      "name": "Pinterest",
+      "category": "Social",
+      "domains": [
+        "pin.it",
+        "pinimg.com",
+        "pinterest.at",
+        "pinterest.be",
+        "pinterest.biz",
+        "pinterest.ca",
+        "pinterest.ch",
+        "pinterest.cl",
+        "pinterest.co",
+        "pinterest.co.at",
+        "pinterest.co.in",
+        "pinterest.co.kr",
+        "pinterest.co.nz",
+        "pinterest.co.uk",
+        "pinterest.com",
+        "pinterest.com.au",
+        "pinterest.com.bo",
+        "pinterest.com.ec",
+        "pinterest.com.mx",
+        "pinterest.com.pe",
+        "pinterest.com.pt",
+        "pinterest.com.py",
+        "pinterest.com.uy",
+        "pinterest.com.vn",
+        "pinterest.de",
+        "pinterest.dk",
+        "pinterest.ec",
+        "pinterest.es",
+        "pinterest.fr",
+        "pinterest.hu",
+        "pinterest.id",
+        "pinterest.ie",
+        "pinterest.in",
+        "pinterest.info",
+        "pinterest.it",
+        "pinterest.jp",
+        "pinterest.kr",
+        "pinterest.mx",
+        "pinterest.nl",
+        "pinterest.nz",
+        "pinterest.pe",
+        "pinterest.ph",
+        "pinterest.pt",
+        "pinterest.ru",
+        "pinterest.se",
+        "pinterest.th",
+        "pinterest.tw",
+        "pinterest.uk",
+        "pinterest.vn"
+      ]
+    },
+    {
+      "id": "playstation-network",
+      "name": "PlayStation Network",
+      "category": "Jeux",
+      "domains": [
+        "playstation.net"
+      ]
+    },
+    {
+      "id": "primevideo",
+      "name": "Prime Video",
+      "category": "Vidéo",
+      "domains": [
+        "amazonvideo.com",
+        "primevideo.com"
+      ]
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit",
+      "category": "Social",
+      "domains": [
+        "redd.it",
+        "reddit.com",
+        "reddit.map.fastly.net",
+        "redditmedia.com",
+        "redditstatic.com"
+      ]
+    },
+    {
+      "id": "roblox",
+      "name": "Roblox",
+      "category": "Jeux",
+      "domains": [
+        "rbxcdn.com",
+        "roblox.com"
+      ]
+    },
+    {
+      "id": "signal",
+      "name": "Signal",
+      "category": "Communication",
+      "domains": [
+        "signal.org",
+        "textsecure-service.whispersystems.org"
+      ]
+    },
+    {
+      "id": "skype",
+      "name": "Skype",
+      "category": "Communication",
+      "domains": [
+        "edge-skype-com.s-0001.s-msedge.net",
+        "skype-edf.akadns.net",
+        "skype.com",
+        "skypeassets.com",
+        "skypedata.akadns.net"
+      ]
+    },
+    {
+      "id": "snapchat",
+      "name": "Snapchat",
+      "category": "Social",
+      "domains": [
+        "feelinsonice-hrd.appspot.com",
+        "feelinsonice.appspot.com",
+        "sc-analytics.appspot.com",
+        "sc-cdn.net",
+        "sc-gw.com",
+        "sc-jpl.com",
+        "sc-prod.net",
+        "snap-dev.net",
+        "snapads.com",
+        "snapchat.com"
+      ]
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "category": "Musique",
+      "domains": [
+        "_spotify-connect._tcp.local",
+        "audio-ak-spotify-com.akamaized.net",
+        "audio4-ak-spotify-com.akamaized.net",
+        "heads-ak-spotify-com.akamaized.net",
+        "heads4-ak-spotify-com.akamaized.net",
+        "scdn.co",
+        "spotify.com",
+        "spotify.com.edgesuite.net",
+        "spotify.map.fastly.net",
+        "spotify.map.fastlylb.net",
+        "spotifycdn.com",
+        "spotifycdn.net"
+      ]
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "category": "Jeux",
+      "domains": [
+        "poweredbysteam.net",
+        "steam-chat.com",
+        "steamcdn-a.akamaihd.net",
+        "steamcommunity-a.akamaihd.net",
+        "steamcommunity-a.akamaihd.net.edgesuite.net",
+        "steamcommunity.com",
+        "steamgames.com",
+        "steamgames.net",
+        "steampowered.com",
+        "steamstatic.com",
+        "steamstore-a.akamaihd.net",
+        "steamusercontent-a.akamaihd.net"
+      ]
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "category": "Communication",
+      "domains": [
+        "nicegram.app",
+        "t.me",
+        "telegram.me",
+        "telegram.org"
+      ]
+    },
+    {
+      "id": "tiktok",
+      "name": "TikTok / Douyin",
+      "category": "Social",
+      "domains": [
+        "douyin.com",
+        "douyincdn.com",
+        "douyinpic.com",
+        "douyinstatic.com",
+        "douyinvod.com",
+        "ibytedtos.com",
+        "ibyteimg.com",
+        "iesdouyin.com",
+        "muscdn.com",
+        "muscdn.com.akamaized.net",
+        "musical.ly",
+        "p16-tiktokcdn-com.akamaized.net",
+        "tiktok-eu.net",
+        "tiktok-row.net",
+        "tiktok-us.net",
+        "tiktok.bytedance.map.fastly.net",
+        "tiktok.com",
+        "tiktok.com.bytedance.akadns.net",
+        "tiktok.com.bytewlb.akadns.net",
+        "tiktok.com.edgesuite.net",
+        "tiktok.com.ttdns2.com",
+        "tiktok.in",
+        "tiktok.mncdn.com",
+        "tiktok.net",
+        "tiktokcdn-eu.com",
+        "tiktokcdn-eu.com.akamaized.net",
+        "tiktokcdn-eu.com.c.bytefcdn-ttpeu.com",
+        "tiktokcdn-eu.com.edgesuite.net",
+        "tiktokcdn-eu.com.ttdns3.com",
+        "tiktokcdn-eu.net",
+        "tiktokcdn-in.com",
+        "tiktokcdn-us.com",
+        "tiktokcdn-us.com.akamaized.net",
+        "tiktokcdn-us.com.atomile.com",
+        "tiktokcdn-us.com.c.worldfcdn2.com",
+        "tiktokcdn-us.com.edgesuite.net",
+        "tiktokcdn.com",
+        "tiktokcdn.com.abc-jns.swiftserve.com",
+        "tiktokcdn.com.akamaized.net",
+        "tiktokcdn.com.atomile.com",
+        "tiktokcdn.com.bytegeo.akadns.net",
+        "tiktokcdn.com.c.bytefcdn-oversea.com",
+        "tiktokcdn.com.c.bytefcdn-ttpeu.com",
+        "tiktokcdn.com.c.bytetcdn.com",
+        "tiktokcdn.com.c.worldfcdn.com",
+        "tiktokcdn.com.cdn20.com",
+        "tiktokcdn.com.ecdnx.com",
+        "tiktokcdn.com.edgesuite.net",
+        "tiktokcdn.com.jns3.swiftserve.com",
+        "tiktokcdn.com.qlivecdn.com",
+        "tiktokcdn.com.queniuaa.com",
+        "tiktokcdn.com.rocket-cdn.com",
+        "tiktokcdn.com.tlivepush.com",
+        "tiktokcdn.com.ttdns2.com",
+        "tiktokcdn.com.wsdvs.com",
+        "tiktokcdn.liveplay.myqcloud.com",
+        "tiktokd.org",
+        "tiktokeu-cdn.com",
+        "tiktokeu-cdn.com.c.bytefcdn-ttpeu.com",
+        "tiktokglobalshopv.com",
+        "tiktoklb.eu",
+        "tiktokpangle-b.us",
+        "tiktokpangle-cdn-us.com",
+        "tiktokpangle.us",
+        "tiktokrow-cdn.com",
+        "tiktokrow-cdn.com.c.bytefcdn-oversea.com",
+        "tiktokrow-cdn.com.qlivecdn.com",
+        "tiktokrow-cdn.com.rocket-cdn.com",
+        "tiktokrow-cdn.com.wsdvs.com",
+        "tiktokshop.com",
+        "tiktokstaticb.com",
+        "tiktokstaticb.com.edgesuite.net",
+        "tiktokv.com",
+        "tiktokv.com.akamaized.net",
+        "tiktokv.com.bytewlb.akadns.net",
+        "tiktokv.com.c.bytefcdn-oversea.com",
+        "tiktokv.com.c.worldfcdn2.com",
+        "tiktokv.com.cdn.cloudflare.net",
+        "tiktokv.com.edgekey.net",
+        "tiktokv.com.edgesuite.net",
+        "tiktokv.com.ttdns2.com",
+        "tiktokv.eu",
+        "tiktokv.eu.edgesuite.net",
+        "tiktokv.eu.ttdns3.com",
+        "tiktokv.us",
+        "tiktokv.us.edgesuite.net",
+        "tiktokw.eu",
+        "tiktokw.us",
+        "tiktokw.us.edgesuite.net",
+        "ttlivecdn.com"
+      ]
+    },
+    {
+      "id": "tinder",
+      "name": "Tinder",
+      "category": "Social",
+      "domains": [
+        "gotinder.com",
+        "tinder.com",
+        "tindersparks.com"
+      ]
+    },
+    {
+      "id": "tumblr",
+      "name": "Tumblr",
+      "category": "Social",
+      "domains": [
+        "tumblr.com"
+      ]
+    },
+    {
+      "id": "twitch",
+      "name": "Twitch",
+      "category": "Vidéo",
+      "domains": [
+        "ext-twitch.tv",
+        "jtvnw.net",
+        "ttvnw.net",
+        "twitch.map.fastly.net",
+        "twitch.tv",
+        "twitchcdn.net",
+        "twitchsvc.net"
+      ]
+    },
+    {
+      "id": "twitter",
+      "name": "X / Twitter",
+      "category": "Social",
+      "domains": [
+        "ads-twitter.com",
+        "t.co",
+        "twimg.com",
+        "twitter.com",
+        "twtrdns.net",
+        "twttr.com",
+        "x.com"
+      ]
+    },
+    {
+      "id": "vimeo",
+      "name": "Vimeo",
+      "category": "Vidéo",
+      "domains": [
+        "vimeo-video.map.fastly.net",
+        "vimeo.com",
+        "vimeo.map.fastly.net",
+        "vimeocdn.com"
+      ]
+    },
+    {
+      "id": "vk",
+      "name": "VK",
+      "category": "Social",
+      "domains": [
+        "userapi.com",
+        "vk-cdn.net",
+        "vk-portal.net",
+        "vk.cc",
+        "vk.com",
+        "vk.link",
+        "vkontakte.ru",
+        "vkuservideo.net"
+      ]
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp",
+      "category": "Communication",
+      "domains": [
+        "whatsapp.com",
+        "whatsapp.net"
+      ]
+    },
+    {
+      "id": "xboxlive",
+      "name": "Xbox Network",
+      "category": "Jeux",
+      "domains": [
+        "xbox.com",
+        "xboxlive.xom"
+      ]
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "category": "Vidéo",
+      "domains": [
+        "googlevideo.com",
+        "youtu.be",
+        "youtube",
+        "youtube-nocookie.com",
+        "youtube.be",
+        "youtube.co.uk",
+        "youtube.com",
+        "youtube.de",
+        "youtube.fr",
+        "youtube.googleapis.com",
+        "youtube.nl",
+        "youtube.pl",
+        "youtubeeducation.com",
+        "youtubegaming.com",
+        "youtubei.googleapis.com",
+        "youtubekids.com",
+        "yt3.ggpht.com",
+        "ytimg.com"
+      ]
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "category": "Communication",
+      "domains": [
+        "zoom.com",
+        "zoom.com.cn",
+        "zoom.us",
+        "zoomus.zendesk.com"
+      ]
+    }
+  ]
+}

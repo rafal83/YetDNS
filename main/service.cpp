@@ -1,5 +1,6 @@
 #include "service.hpp"
 #include "lists.hpp"
+#include "apps.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
@@ -93,6 +94,7 @@ static bool policy(const Question &q, uint32_t client, Action &action, uint8_t *
     xSemaphoreTake(rules_mutex, portMAX_DELAY);
     bool found = evaluate_rules(rules, q.name, client, action, address);
     xSemaphoreGive(rules_mutex);
+    if (!found && apps_denied(q.name, client)) { action = Action::deny; found = true; }
     return found;
 }
 static bool alias_denied(const char *name, void *context) {
@@ -104,6 +106,10 @@ static bool alias_denied(const char *name, void *context) {
 }
 static bool check_aliases(const uint8_t *packet, size_t n, uint32_t client, bool &denied) {
     return inspect_aliases(packet, n, alias_denied, &client, denied);
+}
+static size_t blocked_reply(const uint8_t *query, size_t n, uint8_t *out) {
+    uint32_t address = block_page_enabled ? subnet_ip.load() : 0;
+    return reply(query, n, out, 0, address ? reinterpret_cast<const uint8_t *>(&address) : nullptr, true);
 }
 static bool recv_exact(int fd, uint8_t *out, size_t n) {
     size_t pos = 0;
@@ -244,12 +250,12 @@ static void process(int udp, int tcp, uint32_t generation, const sockaddr_in &pe
         if (custom && action == Action::rewrite) {
             rn = reply(query, n, response, 0, address); result = "rewrite";
         } else if (blocking && ((custom && action == Action::deny) || (!custom && filter_contains(q.name)))) {
-            rn = reply(query, n, response, 0, nullptr, true); result = "blocked"; ++stats.blocked;
+            rn = blocked_reply(query, n, response); result = "blocked"; ++stats.blocked;
         } else if ((rn = cache.get(query, n, response, seconds_now()))) {
             bool denied = false;
             if (!(custom && action == Action::allow) && !check_aliases(response, rn, peer.sin_addr.s_addr, denied)) {
                 rn = reply(query, n, response, 2); ++stats.errors; result = "error";
-            } else if (denied) { rn = reply(query, n, response, 0, nullptr, true); ++stats.blocked; result = "blocked"; }
+            } else if (denied) { rn = blocked_reply(query, n, response); ++stats.blocked; result = "blocked"; }
             else { ++stats.cached; result = "cache"; }
         }
         else {
@@ -301,7 +307,7 @@ static void server(void *) {
                 if (!check_aliases(job->packet, job->n, job->peer.sin_addr.s_addr, denied)) {
                     job->success = false; job->n = reply(job->original, job->original_n, job->packet, 2);
                 } else if (denied) {
-                    job->n = reply(job->original, job->original_n, job->packet, 0, nullptr, true);
+                    job->n = blocked_reply(job->original, job->original_n, job->packet);
                     job->cacheable = false; ++stats.blocked;
                 }
             }

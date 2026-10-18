@@ -6,6 +6,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s tests -v
+      - run: python3 tools/update_app_catalog.py --offline
+      - run: git diff --exit-code -- main/app_catalog.inc
       - run: python3 tools/build_blocklist.py --output main/blocklist.bin data/blocked.txt
       - run: cmake -S tests -B build-host -DCMAKE_BUILD_TYPE=Debug
       - run: cmake --build build-host

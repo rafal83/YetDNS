@@ -1,12 +1,14 @@
-# YetDNS 0.2 sur ESP32
+# YetDNS 0.3 sur ESP32
 
 Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Profil 8 Mo également disponible. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
 
 ## Utilisation
 
-Ouvrir l'adresse IP affichée sur le port série (carte actuellement déployée : `http://192.168.1.168`). L'interface propose cinq onglets :
+Ouvrir l'adresse IP affichée sur le port série (carte actuellement déployée : `http://192.168.1.168`). L'interface propose huit onglets :
 
 - **Listes de blocage** : HaGeZi Light, HaGeZi Normal, StevenBlack et URL HTTPS personnalisées ; jusqu'à six sources, activation individuelle, actualisation manuelle et intervalle automatique de 1 à 720 heures.
+- **Applications** : catalogue de 43 services (YouTube, TikTok, Instagram, jeux, messageries, streaming…), recherche et catégories. Sélection globale ou blocages supplémentaires par IPv4, avec 16 profils. Les choix persistent en NVS sans téléchargement au démarrage.
+- **Liste blanche / Liste noire** : domaines autorisés ou bloqués, un par ligne, globalement ou pour une IP. Les deux onglets partagent les 32 règles locales avec les réécritures et conservent les règles des autres périmètres. Le JSON reste accessible dans Règles locales.
 - **Paramètres avancés** : résolveurs IPv4 principal/secondaire, UDP ou DoH, URL HTTPS, timeout de 500 à 10 000 ms, limite de 0 à 1 000 requêtes/s/appareil, restriction au sous-réseau local et journalisation.
 - **Règles locales** : 32 exceptions, blocages ou réécritures IPv4, globales ou par IP client. L'appareil a priorité sur les règles globales ; le suffixe le plus précis gagne dans chaque groupe.
 - **Journal** : les 32 dernières requêtes, leur appareil, leur résultat et leur durée ; effacement manuel.
@@ -15,6 +17,12 @@ Ouvrir l'adresse IP affichée sur le port série (carte actuellement déployée 
 Les réglages sont persistants et s'appliquent sans reflash. Le journal garde uniquement les **32 dernières requêtes en RAM** ; son contenu disparaît au redémarrage et lors de sa désactivation. Il peut être effacé depuis l'interface.
 
 L'onglet Règles locales contient un exemple expliqué pour `192.168.1.50` : `client` limite une règle à cet appareil, `deny` bloque, `allow` autorise malgré les listes et `rewrite` renvoie l'IPv4 définie dans `address`. Sans `client`, la règle est globale. Les règles couvrent le domaine et ses sous-domaines. Réserver l'IP par DHCP et faire interroger l'ESP directement : si un routeur relaie toutes les requêtes sous sa propre IP, le filtrage ne peut pas distinguer les appareils.
+
+Pour les trois nouveaux onglets, laisser l'IP vide pour tous les appareils, ou saisir une IPv4 puis cliquer sur « Charger ce périmètre ». Modifier la sélection ou les domaines puis enregistrer. La recherche d'applications masque les lignes sans effacer les choix. Une sélection par appareil ajoute des blocages à ceux du périmètre global ; pour une exception, utiliser la liste blanche. Les règles locales sont évaluées avant les applications, puis les listes téléchargées. Les alias CNAME/DNAME sont également contrôlés.
+
+Le catalogue embarqué est un instantané de [nextdns/services](https://github.com/nextdns/services), sous [licence MIT](data/nextdns-services-LICENSE.txt) ; sa révision est enregistrée dans `data/applications.json`. Ses 403 suffixes de domaines distincts sont recherchés exactement dans un index trié en flash. Le chemin DNS ne construit aucune règle et n'alloue pas de mémoire pour les applications. Le catalogue est actualisable avant compilation avec `python tools/update_app_catalog.py`, ou régénérable hors ligne avec `--offline`. Ses positions d'identifiants sont stables pour préserver les choix enregistrés. Ce blocage concerne les services entiers, peut affecter des fonctions partagées, et ne garantit pas de bloquer un VPN, un DNS externe ou une connexion déjà ouverte.
+
+L'option **Page de blocage HTTP**, dans DNS avancé, est désactivée par défaut. Une fois activée, les réponses A bloquées renvoient l'IPv4 de l'ESP et celui-ci affiche « Accès bloqué par YetDNS » avec un statut HTTP 403, quel que soit le chemin demandé. Les hôtes redirigés n'accèdent pas à l'administration ; celle-ci reste disponible par l'IP de l'ESP ou `yetdns.local`. Les réponses AAAA restent `::`. HTTPS n'affiche pas cette page : une erreur de connexion ou de certificat apparaît, car le DNS seul ne permet pas d'intercepter une connexion chiffrée. Les réponses DNS locales ont un TTL de 60 secondes ; un appareil peut conserver temporairement l'ancien mode après changement.
 
 Pour utiliser le filtrage sur le LAN, réserver l'IP de l'ESP dans le DHCP du routeur et la distribuer comme DNS (option DHCP 6). Un second DNS public peut contourner le filtre. Le serveur écoute sur IPv4 et traite aussi les enregistrements AAAA ; l'écoute IPv6 n'est pas encore implémentée. Vérifier les DNS IPv6 annoncés par le routeur et les appareils utilisant leur propre DoH/DoT.
 
@@ -69,6 +77,8 @@ Renseigner le Wi-Fi dans `menuconfig` et remplacer le port selon la carte. Les i
 
 Le partitionnement 0.2 réserve 2 Mo au firmware, une partition NVS dédiée aux réglages listes/MQTT, et deux espaces de listes. Sur 16 Mo, chaque copie dispose d'environ 6,9 Mo. Une mise à jour depuis 0.1 nécessite de flasher **aussi la table de partitions**. Le NVS principal conserve sa position et les règles existantes. Le firmware ne propose pas encore d'OTA signé.
 
+Les règles blanche/noire et les réécritures sont enregistrées en taille variable dans la partition NVS `listscfg`, plutôt que comme un tableau complet dans le petit NVS Wi-Fi. Développement continu : seul le format courant des paramètres et des règles est pris en charge, sans migration des anciens formats. Un format incompatible recharge les valeurs par défaut ; les listes téléchargées et MQTT utilisent leurs configurations séparées.
+
 L'administration HTTP reste limitée à un LAN de confiance et n'utilise plus d'authentification, à la demande du propriétaire. Aucun CORS n'est autorisé. Les mutations demandent l'en-tête non secret `X-YetDNS: 1` afin d'empêcher les soumissions ordinaires provenant d'un autre site. Aucune ouverture de port WAN.
 
 ## API locale
@@ -82,6 +92,7 @@ L'administration HTTP reste limitée à un LAN de confiance et n'utilise plus d'
 | `/api/lists/update` | POST | Déclenchement asynchrone, réponse 202 |
 | `/api/mqtt` | GET / PUT | Réglages Home Assistant et état du broker |
 | `/api/rules` | GET / PUT | Lecture/remplacement des règles locales |
+| `/api/apps` | GET / PUT | Catalogue et profils ; PUT `{"client":"192.168.1.50","blocked":["youtube","tiktok"]}`, client vide/absent pour tous |
 | `/api/logs` | GET | Journal en RAM |
 | `/api/logs/clear` | POST | Effacement du journal |
 | `/api/cache/flush` | POST | Purge du cache |

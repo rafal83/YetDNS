@@ -1,4 +1,5 @@
 #include "ha_mqtt.hpp"
+#include "esp_app_desc.h"
 #include "service.hpp"
 #include "lists.hpp"
 #include <cstring>
@@ -73,7 +74,7 @@ static void discovery(esp_mqtt_client_handle_t client, const MqttConfig &cfg) {
         auto *device = cJSON_AddObjectToObject(json, "device"); auto *ids = cJSON_AddArrayToObject(device, "identifiers");
         cJSON_AddItemToArray(ids, cJSON_CreateString(device_id)); cJSON_AddStringToObject(device, "name", "YetDNS");
         cJSON_AddStringToObject(device, "manufacturer", "YetDNS"); cJSON_AddStringToObject(device, "model", "ESP32-S3 Wi-Fi DNS");
-        cJSON_AddStringToObject(device, "sw_version", "0.2.0");
+        cJSON_AddStringToObject(device, "sw_version", esp_app_get_description()->version);
         if (std::strcmp(entity.component, "button")) {
             cJSON_AddStringToObject(json, "state_topic", state_topic);
             if (!std::strcmp(entity.component, "switch")) snprintf(value_template, sizeof(value_template), "{{ 'ON' if value_json.%s else 'OFF' }}", entity.key);

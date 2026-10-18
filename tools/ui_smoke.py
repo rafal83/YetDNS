@@ -21,7 +21,7 @@ with sync_playwright() as playwright:
         page.wait_for_timeout(200)
     else:
         raise AssertionError('Dashboard did not load its live state')
-    tabs = ['lists', 'advanced', 'local-rules', 'journal', 'home-assistant']
+    tabs = ['lists', 'applications', 'allowlist', 'denylist', 'advanced', 'local-rules', 'journal', 'home-assistant']
     for tab in tabs:
         page.locator('[data-panel="' + tab + '"]').click()
         assert page.locator('#' + tab).is_visible(), tab
@@ -30,8 +30,23 @@ with sync_playwright() as playwright:
                 assert not page.locator('#' + other).is_visible(), (tab, other)
     page.locator('[data-panel="advanced"]').click()
     assert page.locator('#logging').is_checked()
+    assert page.locator('#block_page').is_visible()
     assert page.locator('#primary').input_value()
     assert page.locator('#doh_url').input_value().startswith('https://')
+    page.locator('[data-panel="applications"]').click()
+    for _ in range(100):
+        if page.locator('#app-cards label').count() == 43:
+            break
+        page.wait_for_timeout(100)
+    assert page.locator('#app-cards label').count() == 43
+    page.locator('#apps-search').fill('youtube')
+    assert page.locator('#app-cards label:visible').count() == 1
+    assert 'YouTube' in page.locator('#app-cards label:visible').inner_text()
+    page.locator('#apps-search').fill('')
+    page.locator('[data-panel="allowlist"]').click()
+    assert page.locator('#allow-domains').is_visible()
+    page.locator('[data-panel="denylist"]').click()
+    assert page.locator('#deny-domains').is_visible()
     page.locator('[data-panel="local-rules"]').click()
     assert page.locator('#rules-help').is_visible()
     example = json.loads(page.locator('#rules-example').inner_text())
