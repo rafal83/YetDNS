@@ -1,4 +1,6 @@
 #include "service.hpp"
+#include "apps.hpp"
+#include "esp_app_desc.h"
 #include "lists.hpp"
 #include "ha_mqtt.hpp"
 #include <cstdlib>
@@ -6,6 +8,7 @@
 #include <memory>
 #include <cmath>
 #include <ctime>
+#include <cstddef>
 #include "cJSON.h"
 #include "esp_http_server.h"
 #include "esp_heap_caps.h"
@@ -15,6 +18,7 @@
 #include "esp_timer.h"
 #include "lwip/sockets.h"
 #include "nvs.h"
+#include "nvs_flash.h"
 
 namespace yetdns {
 static bool valid_rules(const Rules &value) {
@@ -26,30 +30,41 @@ static bool valid_rules(const Rules &value) {
     }
     return true;
 }
+static esp_err_t persist_rules(const Rules &value) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open_from_partition("listscfg", "policy", NVS_READWRITE, &handle);
+    if (err != ESP_OK) return err;
+    size_t size = offsetof(Rules, items) + value.count * sizeof(Rule);
+    err = nvs_set_blob(handle, "rules", &value, size);
+    if (err == ESP_OK) err = nvs_commit(handle);
+    nvs_close(handle); return err;
+}
 void load_settings() {
     rules_mutex = xSemaphoreCreateMutex();
     configASSERT(rules_mutex);
+    ESP_ERROR_CHECK(nvs_flash_init_partition("listscfg"));
     nvs_handle_t nvs;
     ESP_ERROR_CHECK(nvs_open("yetdns", NVS_READWRITE, &nvs));
-    nvs_erase_key(nvs, "token");
-    ESP_ERROR_CHECK(nvs_commit(nvs));
     auto loaded = std::unique_ptr<Rules>(new (std::nothrow) Rules{});
     configASSERT(loaded);
     size_t len = sizeof(Rules);
-    if (nvs_get_blob(nvs, "rules", loaded.get(), &len) == ESP_OK && len == sizeof(Rules) && valid_rules(*loaded)) rules = *loaded;
+    nvs_handle_t policy;
+    if (nvs_open_from_partition("listscfg", "policy", NVS_READONLY, &policy) == ESP_OK) {
+        if (nvs_get_blob(policy, "rules", loaded.get(), &len) == ESP_OK &&
+            len == offsetof(Rules, items) + loaded->count * sizeof(Rule) && valid_rules(*loaded)) {
+            rules = *loaded;
+        }
+        nvs_close(policy);
+    }
     uint8_t enabled = 1;
     nvs_get_u8(nvs, "blocking", &enabled); blocking = enabled != 0;
     nvs_close(nvs);
     runtime_init();
+    ESP_ERROR_CHECK(apps_init());
 }
 esp_err_t save_rules(const Rules &value) {
     if (!valid_rules(value)) return ESP_ERR_INVALID_ARG;
-    nvs_handle_t nvs;
-    esp_err_t err = nvs_open("yetdns", NVS_READWRITE, &nvs);
-    if (err != ESP_OK) return err;
-    err = nvs_set_blob(nvs, "rules", &value, sizeof(value));
-    if (err == ESP_OK) err = nvs_commit(nvs);
-    nvs_close(nvs);
+    esp_err_t err = persist_rules(value);
     if (err == ESP_OK) {
         xSemaphoreTake(rules_mutex, portMAX_DELAY); rules = value; xSemaphoreGive(rules_mutex);
         flush_cache = true;
@@ -114,7 +129,7 @@ static esp_err_t dashboard(httpd_req_t *req) {
 static esp_err_t get_stats(httpd_req_t *req) {
     if (!authorized(req)) return ESP_OK;
     auto *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "version", "0.2.0");
+    cJSON_AddStringToObject(json, "version", esp_app_get_description()->version);
     cJSON_AddStringToObject(json, "transport", doh_enabled.load() ? "DoH" : "UDP + TCP fallback");
     cJSON_AddBoolToObject(json, "blocking", blocking.load());
     cJSON_AddNumberToObject(json, "domains", filter_count());
@@ -194,7 +209,8 @@ static esp_err_t put_rules(httpd_req_t *req) {
     }
     cJSON_Delete(json);
     if (!valid) return error(req, "400 Bad Request", "Expected <=32 unique rules: domain, action allow/deny/rewrite, optional client IPv4, address IPv4 for rewrite");
-    if (save_rules(*next) != ESP_OK) return error(req, "500 Internal Server Error", "NVS write failed");
+    esp_err_t err = save_rules(*next);
+    if (err != ESP_OK) return error(req, "500 Internal Server Error", esp_err_to_name(err));
     return httpd_resp_sendstr(req, "{}");
 }
 static esp_err_t get_logs(httpd_req_t *req) {
@@ -236,6 +252,7 @@ static esp_err_t get_config(httpd_req_t *req) {
     cJSON_AddStringToObject(json, "primary", cfg.primary); cJSON_AddStringToObject(json, "secondary", cfg.secondary);
     cJSON_AddStringToObject(json, "doh_url", cfg.doh_url); cJSON_AddBoolToObject(json, "doh", cfg.doh);
     cJSON_AddBoolToObject(json, "logging", cfg.logging); cJSON_AddBoolToObject(json, "subnet_only", cfg.subnet_only);
+    cJSON_AddBoolToObject(json, "block_page", cfg.block_page);
     cJSON_AddNumberToObject(json, "rate_limit", cfg.rate_limit); cJSON_AddNumberToObject(json, "timeout_ms", cfg.timeout_ms);
     return json_send(req, json);
 }
@@ -245,7 +262,7 @@ static esp_err_t put_config(httpd_req_t *req) {
     RuntimeConfig cfg = runtime_snapshot();
     bool valid = cJSON_IsObject(json) && read_uint(json, "rate_limit", cfg.rate_limit, 0, 1000) &&
         read_uint(json, "timeout_ms", cfg.timeout_ms, 500, 10000) && read_bool(json, "doh", cfg.doh) &&
-        read_bool(json, "logging", cfg.logging) && read_bool(json, "subnet_only", cfg.subnet_only) &&
+        read_bool(json, "logging", cfg.logging) && read_bool(json, "subnet_only", cfg.subnet_only) && read_bool(json, "block_page", cfg.block_page) &&
         read_string(json, "primary", cfg.primary, sizeof(cfg.primary)) && read_string(json, "secondary", cfg.secondary, sizeof(cfg.secondary)) &&
         read_string(json, "doh_url", cfg.doh_url, sizeof(cfg.doh_url)) && runtime_valid(cfg);
     cJSON_Delete(json);
@@ -326,6 +343,84 @@ static esp_err_t put_mqtt(httpd_req_t *req) {
     if (mqtt_save(cfg) != ESP_OK) return error(req, "500 Internal Server Error", "Cannot save MQTT settings");
     return httpd_resp_sendstr(req, "{}");
 }
+static void add_app_ids(cJSON *array, uint64_t mask) {
+    for (size_t i = 0; i < application_count(); ++i) if (mask & (UINT64_C(1) << i))
+        cJSON_AddItemToArray(array, cJSON_CreateString(application_at(i).id));
+}
+static esp_err_t get_apps(httpd_req_t *req) {
+    auto cfg = apps_config(); auto *json = cJSON_CreateObject();
+    auto *catalog = cJSON_AddArrayToObject(json, "catalog");
+    for (size_t i = 0; i < application_count(); ++i) {
+        const auto &app = application_at(i); auto *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "id", app.id); cJSON_AddStringToObject(item, "name", app.name);
+        cJSON_AddStringToObject(item, "category", app.category); cJSON_AddNumberToObject(item, "domains", app.domains);
+        cJSON_AddItemToArray(catalog, item);
+    }
+    add_app_ids(cJSON_AddArrayToObject(json, "blocked"), cfg.blocked);
+    auto *clients = cJSON_AddArrayToObject(json, "clients");
+    for (size_t i = 0; i < cfg.count; ++i) {
+        auto *item = cJSON_CreateObject(); char address[16]; in_addr addr{}; addr.s_addr = cfg.clients[i].address;
+        inet_ntop(AF_INET, &addr, address, sizeof(address)); cJSON_AddStringToObject(item, "client", address);
+        add_app_ids(cJSON_AddArrayToObject(item, "blocked"), cfg.clients[i].blocked);
+        cJSON_AddItemToArray(clients, item);
+    }
+    cJSON_AddNumberToObject(json, "client_limit", app_client_max);
+    cJSON_AddStringToObject(json, "source", "https://github.com/nextdns/services");
+    return json_send(req, json);
+}
+static esp_err_t put_apps(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    cJSON *json = read_json(req, 4096); if (!json) return ESP_OK;
+    auto *ids = cJSON_GetObjectItemCaseSensitive(json, "blocked");
+    auto *client = cJSON_GetObjectItemCaseSensitive(json, "client");
+    uint32_t address = 0; uint64_t mask = 0;
+    bool valid = cJSON_IsObject(json) && cJSON_IsArray(ids) && cJSON_GetArraySize(ids) <= int(application_count());
+    if (client) {
+        if (!cJSON_IsString(client)) valid = false;
+        else if (client->valuestring[0] && (inet_pton(AF_INET, client->valuestring, &address) != 1 || !address || address == INADDR_NONE)) valid = false;
+    }
+    cJSON *item;
+    cJSON_ArrayForEach(item, ids) {
+        int index = cJSON_IsString(item) ? application_index(item->valuestring) : -1;
+        if (index < 0 || (mask & (UINT64_C(1) << index))) { valid = false; break; }
+        mask |= UINT64_C(1) << index;
+    }
+    cJSON_Delete(json);
+    if (!valid) return error(req, "400 Bad Request", "Expected known unique application IDs in blocked and optional client IPv4");
+    esp_err_t err = apps_save_scope(address, mask);
+    if (err == ESP_ERR_INVALID_ARG) return error(req, "400 Bad Request", "At most 16 per-device application profiles");
+    if (err != ESP_OK) return error(req, "500 Internal Server Error", "Cannot save application settings");
+    return httpd_resp_sendstr(req, "{}");
+}
+static bool local_admin_host(httpd_req_t *req) {
+    char host[256]{};
+    if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) return false;
+    char *port = std::strchr(host, ':');
+    if (port) *port = 0;
+    if (!strcasecmp(host, "yetdns") || !strcasecmp(host, "yetdns.local")) return true;
+    in_addr address{};
+    return inet_pton(AF_INET, host, &address) == 1 && address.s_addr == subnet_ip.load();
+}
+static esp_err_t blocked_page(httpd_req_t *req) {
+    extern const uint8_t page_start[] asm("_binary_blocked_html_start");
+    extern const uint8_t page_end[] asm("_binary_blocked_html_end");
+    httpd_resp_set_status(req, "403 Forbidden");
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    httpd_resp_set_hdr(req, "Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");
+    return httpd_resp_send(req, reinterpret_cast<const char *>(page_start), page_end - page_start);
+}
+struct Route { const char *path; httpd_method_t method; esp_err_t (*handler)(httpd_req_t *); };
+static esp_err_t dispatch(httpd_req_t *req) {
+    // Old DNS answers may still point here after the option is disabled.
+    if (!local_admin_host(req)) return blocked_page(req);
+    return static_cast<const Route *>(req->user_ctx)->handler(req);
+}
+static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t) {
+    if (!local_admin_host(req)) return blocked_page(req);
+    return error(req, "404 Not Found", "Not found");
+}
 esp_err_t admin_start() {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.max_uri_handlers = 18;
     cfg.stack_size = 8192; cfg.lru_purge_enable = true; cfg.max_open_sockets = 3;
@@ -333,8 +428,7 @@ esp_err_t admin_start() {
     httpd_handle_t server;
     esp_err_t err = httpd_start(&server, &cfg);
     if (err != ESP_OK) return err;
-    struct Route { const char *path; httpd_method_t method; esp_err_t (*handler)(httpd_req_t *); };
-    const Route routes[] = {
+    static const Route routes[] = {
         {"/", HTTP_GET, dashboard},
         {"/api/stats", HTTP_GET, get_stats},
         {"/api/settings", HTTP_POST, settings},
@@ -350,11 +444,13 @@ esp_err_t admin_start() {
         {"/api/lists/update", HTTP_POST, update_lists},
         {"/api/mqtt", HTTP_GET, get_mqtt},
         {"/api/mqtt", HTTP_PUT, put_mqtt},
+        {"/api/apps", HTTP_GET, get_apps},
+        {"/api/apps", HTTP_PUT, put_apps},
     };
     for (const auto &route : routes) {
-        httpd_uri_t uri{}; uri.uri = route.path; uri.method = route.method; uri.handler = route.handler;
+        httpd_uri_t uri{}; uri.uri = route.path; uri.method = route.method; uri.handler = dispatch; uri.user_ctx = const_cast<Route *>(&route);
         err = httpd_register_uri_handler(server, &uri); if (err != ESP_OK) return err;
     }
-    return ESP_OK;
+    return httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
 }
 } // namespace yetdns

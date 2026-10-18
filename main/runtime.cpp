@@ -8,12 +8,12 @@
 
 namespace yetdns {
 std::atomic<uint32_t> query_limit{CONFIG_YETDNS_RATE_LIMIT};
-std::atomic<bool> query_logging{true}, subnet_only{true}, doh_enabled{false};
+std::atomic<bool> query_logging{true}, subnet_only{true}, doh_enabled{false}, block_page_enabled{false};
 static RuntimeConfig current;
 static SemaphoreHandle_t mutex;
 bool runtime_valid(const RuntimeConfig &v) {
     in_addr addr;
-    return v.version == 1 && v.rate_limit <= 1000 && v.timeout_ms >= 500 && v.timeout_ms <= 10000 &&
+    return v.version == 2 && v.rate_limit <= 1000 && v.timeout_ms >= 500 && v.timeout_ms <= 10000 &&
         std::memchr(v.primary, 0, sizeof(v.primary)) && std::memchr(v.secondary, 0, sizeof(v.secondary)) &&
         std::memchr(v.doh_url, 0, sizeof(v.doh_url)) && inet_pton(AF_INET, v.primary, &addr) == 1 &&
         inet_pton(AF_INET, v.secondary, &addr) == 1 && !std::strncmp(v.doh_url, "https://", 8) &&
@@ -21,6 +21,7 @@ bool runtime_valid(const RuntimeConfig &v) {
 }
 static void apply(const RuntimeConfig &v) {
     current = v; query_limit = v.rate_limit; query_logging = v.logging; subnet_only = v.subnet_only; doh_enabled = v.doh;
+    block_page_enabled = v.block_page;
     if (!v.logging) clear_logs();
 }
 void runtime_init() {
