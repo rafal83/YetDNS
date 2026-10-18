@@ -1,0 +1,5 @@
+# Stable fixture, independent from the user's deployment list.
+doubleclick.net
+googlesyndication.com
+googleadservices.com
+ads.example

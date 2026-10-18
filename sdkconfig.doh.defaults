@@ -1,0 +1,3 @@
+# Use after sdkconfig.defaults in a separate build directory.
+CONFIG_YETDNS_DOH=y
+CONFIG_YETDNS_LOG_QUERIES=y
