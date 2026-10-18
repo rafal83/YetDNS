@@ -1,0 +1,48 @@
+menu "YetDNS"
+config YETDNS_WIFI_SSID
+    string "Wi-Fi SSID"
+    default ""
+config YETDNS_WIFI_PASSWORD
+    string "Wi-Fi password (stored in local sdkconfig and firmware)"
+    default ""
+config YETDNS_HOSTNAME
+    string "DHCP hostname"
+    default "yetdns"
+config YETDNS_DOH
+    bool "Use DNS over HTTPS instead of plaintext UDP upstream"
+    default n
+config YETDNS_DOH_URL
+    string "DoH endpoint (HTTPS only; NextDNS profile URL supported)"
+    default "https://cloudflare-dns.com/dns-query"
+config YETDNS_BOOTSTRAP_DNS
+    string "IPv4 DNS for ESP hostname/NTP bootstrap (plaintext; prevents self-resolution loops)"
+    default "1.1.1.1"
+config YETDNS_UPSTREAM_PRIMARY
+    string "Primary UDP upstream IPv4"
+    default "1.1.1.1"
+config YETDNS_UPSTREAM_SECONDARY
+    string "Secondary UDP upstream IPv4"
+    default "9.9.9.9"
+config YETDNS_WORKERS
+    int "Concurrent upstream workers"
+    range 1 3
+    default 2
+config YETDNS_PENDING
+    int "Bounded upstream job pool"
+    range 4 16
+    default 8
+config YETDNS_CACHE_ENTRIES
+    int "DNS cache entries (about 1.6 KiB per entry)"
+    range 8 128
+    default 32
+config YETDNS_RATE_LIMIT
+    int "Per IPv4 client queries/second (0 disables)"
+    range 0 1000
+    default 100
+config YETDNS_CLIENT_SUBNET_ONLY
+    bool "Only accept DNS from the directly connected IPv4 subnet"
+    default y
+config YETDNS_LOG_QUERIES
+    bool "Keep last 32 queries in RAM (no flash logging)"
+    default n
+endmenu

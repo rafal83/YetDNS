@@ -1,0 +1,8 @@
+/build*/
+/sdkconfig
+/sdkconfig.old
+/sdkconfig.local
+__pycache__/
+*.pyc
+/main/blocklist.bin
+/.venv/

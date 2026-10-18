@@ -1,0 +1,5 @@
+# Demonstration list only. Replace/extend with maintained lists; see README.
+doubleclick.net
+googlesyndication.com
+googleadservices.com
+ads.example
