@@ -21,7 +21,16 @@ with sync_playwright() as playwright:
         page.wait_for_timeout(200)
     else:
         raise AssertionError('Dashboard did not load its live state')
-    tabs = ['lists', 'applications', 'allowlist', 'denylist', 'advanced', 'local-rules', 'journal', 'home-assistant']
+    tabs = ['filtering', 'advanced', 'journal', 'diagnostic', 'home-assistant']
+    def open_filter(group):
+        page.locator('[data-panel="filtering"]').click()
+        detail = page.locator('#filter-' + group)
+        if detail.get_attribute('open') is None:
+            detail.locator(':scope > summary').click()
+    def check_menu():
+        tops = [page.locator('[data-panel="' + tab + '"]').bounding_box()['y'] for tab in tabs]
+        assert max(tops) - min(tops) < 1, tops
+    check_menu()
     for tab in tabs:
         page.locator('[data-panel="' + tab + '"]').click()
         assert page.locator('#' + tab).is_visible(), tab
@@ -33,7 +42,7 @@ with sync_playwright() as playwright:
     assert page.locator('#block_page').is_visible()
     assert page.locator('#primary').input_value()
     assert page.locator('#doh_url').input_value().startswith('https://')
-    page.locator('[data-panel="applications"]').click()
+    open_filter('applications')
     for _ in range(100):
         if page.locator('#app-cards label').count() == 43:
             break
@@ -43,25 +52,33 @@ with sync_playwright() as playwright:
     assert page.locator('#app-cards label:visible').count() == 1
     assert 'YouTube' in page.locator('#app-cards label:visible').inner_text()
     page.locator('#apps-search').fill('')
-    page.locator('[data-panel="allowlist"]').click()
+    open_filter('exceptions')
     assert page.locator('#allow-domains').is_visible()
-    page.locator('[data-panel="denylist"]').click()
     assert page.locator('#deny-domains').is_visible()
-    page.locator('[data-panel="local-rules"]').click()
+    page.locator('[data-panel="journal"]').click()
+    assert page.locator('#log-blocked-only').is_visible()
+    page.locator('[data-panel="diagnostic"]').click()
+    assert page.locator('iframe[title="Test de protection depuis ce navigateur"]').is_visible()
+    open_filter('rules')
     assert page.locator('#rules-help').is_visible()
     example = json.loads(page.locator('#rules-example').inner_text())
     assert {rule['action'] for rule in example} == {'allow', 'deny', 'rewrite'}
     assert all(rule['client'] == '192.168.1.50' for rule in example)
     page.locator('[data-panel="home-assistant"]').click()
     assert page.locator('#mqtt-form').is_visible()
-    page.locator('[data-panel="lists"]').click()
+    open_filter('lists')
+    for group in ('applications', 'exceptions', 'rules'):
+        page.locator('#filter-' + group).evaluate('(element) => element.open = false')
     assert page.locator('#sources .source').count() >= 3
     assert not page.locator('input#token').count()
     page.screenshot(path=str(out / 'dashboard-v02.png'), full_page=True)
+    page.set_viewport_size({'width': 1000, 'height': 844})
+    check_menu()
     page.set_viewport_size({'width': 390, 'height': 844})
+    check_menu()
     page.screenshot(path=str(out / 'dashboard-mobile-v02.png'), full_page=True)
     assert not errors, errors
-    result = {'tabs': tabs, 'mutually_exclusive': True, 'logging_checked': True, 'no_login': True, 'per_device_example': True, 'javascript_errors': errors}
+    result = {'tabs': tabs, 'menu_single_line': True, 'filter_groups': 4, 'mutually_exclusive': True, 'logging_checked': True, 'no_login': True, 'per_device_example': True, 'javascript_errors': errors}
     (out / 'ui-results.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result, indent=2))
     browser.close()

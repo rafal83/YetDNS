@@ -14,6 +14,8 @@ jobs:
       - run: ctest --test-dir build-host --output-on-failure
       - run: python3 tools/check_dashboard.py build-host/dashboard.js
       - run: node --check build-host/dashboard.js
+      - run: node --check main/diagnostic.js
+      - run: node tests/diagnostic_tests.js
   firmware:
     runs-on: ubuntu-latest
     strategy:

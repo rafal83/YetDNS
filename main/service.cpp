@@ -20,6 +20,7 @@
 namespace yetdns {
 Counters stats;
 std::atomic<bool> blocking{true}, flush_cache{false};
+std::atomic<bool> log_blocked_only{true};
 std::atomic<uint32_t> subnet_ip{}, subnet_mask{};
 Blocklist blocklist;
 Rules rules;
@@ -39,10 +40,27 @@ size_t copy_logs(LogEntry *out, size_t capacity) {
 void clear_logs() {
     portENTER_CRITICAL(&log_lock); log_next = log_count = 0; portEXIT_CRITICAL(&log_lock);
 }
+void set_log_blocked_only(bool value) {
+    portENTER_CRITICAL(&log_lock);
+    log_blocked_only = value;
+    if (value) {
+        // Compact in chronological order within the ring, preserving existing blocks.
+        size_t first = (log_next + 32 - log_count) % 32, kept = 0;
+        for (size_t i = 0; i < log_count; ++i) {
+            const auto &entry = logs[(first + i) % 32];
+            if (!std::strcmp(entry.result, "blocked")) logs[(first + kept++) % 32] = entry;
+        }
+        log_count = kept; log_next = (first + kept) % 32;
+    }
+    portEXIT_CRITICAL(&log_lock);
+}
 static void record(const Question &q, uint32_t client, const char *result, int64_t start) {
     if (!query_logging) return;
     uint32_t elapsed = esp_timer_get_time() - start;
     portENTER_CRITICAL(&log_lock);
+    if (!query_logging || (log_blocked_only && std::strcmp(result, "blocked"))) {
+        portEXIT_CRITICAL(&log_lock); return;
+    }
     auto &entry = logs[log_next++ % 32];
     strlcpy(entry.domain, q.name, sizeof(entry.domain));
     strlcpy(entry.result, result, sizeof(entry.result));
