@@ -1,6 +1,7 @@
 #include "service.hpp"
 #include "lists.hpp"
 #include "apps.hpp"
+#include "stats.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
@@ -257,7 +258,7 @@ static void deliver(int udp, int tcp, uint32_t generation, const sockaddr_in &pe
 }
 static void process(int udp, int tcp, uint32_t generation, const sockaddr_in &peer, const uint8_t *query, size_t n) {
     int64_t start = esp_timer_get_time();
-    ++stats.queries;
+    ++stats.queries; top_query();
     uint8_t response[packet_max], address[4]{}; Question q;
     size_t rn = 0; const char *result = "forwarded";
     if (!rate_ok(peer.sin_addr.s_addr)) { ++stats.limited; rn = reply(query, n, response, 5); result = "limited"; }
@@ -268,12 +269,12 @@ static void process(int udp, int tcp, uint32_t generation, const sockaddr_in &pe
         if (custom && action == Action::rewrite) {
             rn = reply(query, n, response, 0, address); result = "rewrite";
         } else if (blocking && ((custom && action == Action::deny) || (!custom && filter_contains(q.name)))) {
-            rn = blocked_reply(query, n, response); result = "blocked"; ++stats.blocked;
+            rn = blocked_reply(query, n, response); result = "blocked"; ++stats.blocked; top_block(q.name, peer.sin_addr.s_addr);
         } else if ((rn = cache.get(query, n, response, seconds_now()))) {
             bool denied = false;
             if (!(custom && action == Action::allow) && !check_aliases(response, rn, peer.sin_addr.s_addr, denied)) {
                 rn = reply(query, n, response, 2); ++stats.errors; result = "error";
-            } else if (denied) { rn = blocked_reply(query, n, response); ++stats.blocked; result = "blocked"; }
+            } else if (denied) { rn = blocked_reply(query, n, response); ++stats.blocked; result = "blocked"; top_block(q.name, peer.sin_addr.s_addr); }
             else { ++stats.cached; result = "cache"; }
         }
         else {
@@ -326,7 +327,7 @@ static void server(void *) {
                     job->success = false; job->n = reply(job->original, job->original_n, job->packet, 2);
                 } else if (denied) {
                     job->n = blocked_reply(job->original, job->original_n, job->packet);
-                    job->cacheable = false; ++stats.blocked;
+                    job->cacheable = false; ++stats.blocked; top_block(q.name, job->peer.sin_addr.s_addr);
                 }
             }
             if (job->success && job->cacheable) cache.put(job->original, job->original_n, job->packet, job->n, seconds_now());

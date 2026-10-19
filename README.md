@@ -1,4 +1,4 @@
-# YetDNS 0.4 sur ESP32
+# YetDNS 0.5 sur ESP32
 
 Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Profil 8 Mo également disponible. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
 
@@ -75,6 +75,12 @@ Le chemin DNS local n'alloue pas de mémoire applicative. Les requêtes amont, l
 
 En DoH, certificats et noms sont vérifiés ; aucun repli en clair des requêtes client. L'heure SNTP et le DNS de bootstrap restent nécessaires. La résolution initiale des noms des serveurs utilise le DNS de bootstrap en clair. Pour NextDNS, renseigner `https://dns.nextdns.io/VOTRE_PROFIL` comme URL DoH. La validation DNSSEC appartient au résolveur amont ; les réponses locales n'affirment jamais AD.
 
+## Statistiques de blocage
+
+L’onglet **Statistiques** affiche le top 10 des domaines bloqués (avec le nombre de blocages), le top 10 des appareils qui déclenchent le plus de blocages, et l’historique des 14 derniers jours (requêtes, blocages, part bloquée). Les compteurs sont enregistrés dans la flash de l’ESP (partition NVS `listscfg`) toutes les 10 minutes et à minuit, heure locale (`YETDNS_TIMEZONE`, Europe/Paris par défaut) : ils survivent aux redémarrages, avec au plus 10 minutes de détail perdues. Seuls les 10 premiers de chaque classement sont conservés après un redémarrage et pour les jours passés.
+
+Le classement des domaines utilise un compteur borné (128 domaines distincts, 7 Kio de RAM) : exact tant que la table n'est pas pleine, puis approximatif pour les domaines peu fréquents (affiché « ≈ »). Les noms d’appareils viennent d’une requête mDNS inverse envoyée aux appareils les plus bloqués ; un appareil qui n’y répond pas (certains Android, objets connectés) reste affiché par son IP. Chaque blocage compte une fois par type de requête (A et AAAA comptent séparément, comme le compteur global).
+
 ## Home Assistant via MQTT
 
 Configurer le même broker dans l'ESP et dans l'intégration MQTT de Home Assistant, puis activer l'intégration dans YetDNS. Exemple : `mqtt://192.168.1.10:1883`, ou `mqtts://broker.exemple:8883` avec certificat reconnu. Utilisateur et mot de passe sont séparés de l'URL ; le mot de passe enregistré n'est jamais renvoyé par l'API. Un champ vide conserve le secret existant.
@@ -100,11 +106,20 @@ idf.py -B build-device -p COM4 flash monitor
 
 Renseigner le Wi-Fi dans `menuconfig` et remplacer le port selon la carte. Les identifiants restent dans le dossier `build-device` ignoré par Git et dans le binaire privé. Ne pas distribuer ce binaire.
 
-Le partitionnement 0.2 réserve 2 Mo au firmware, une partition NVS dédiée aux réglages listes/MQTT, et deux espaces de listes. Sur 16 Mo, chaque copie dispose d'environ 6,9 Mo. Une mise à jour depuis 0.1 nécessite de flasher **aussi la table de partitions**. Le NVS principal conserve sa position et les règles existantes. Le firmware ne propose pas encore d'OTA signé.
+Le partitionnement 0.5 prévoit deux emplacements firmware (`ota_0`, `ota_1`, 2 Mo en 16 Mo / 1,7 Mo en 8 Mo), `otadata`, une partition NVS dédiée aux réglages (`listscfg`) et deux espaces de listes (environ 6 Mo chacun en 16 Mo, 2,25 Mo en 8 Mo). Il remplace le partitionnement précédent : le passage à 0.5 se fait **une seule fois par USB**, après un effacement complet de la flash (`idf.py -B build-device -p COM4 erase-flash`), ce qui efface réglages, règles et listes. Les identifiants Wi-Fi de la compilation sont recopiés en NVS au démarrage ; les mises à jour suivantes se font sans fil.
 
-Les règles blanche/noire et les réécritures sont enregistrées en taille variable dans la partition NVS `listscfg`, plutôt que comme un tableau complet dans le petit NVS Wi-Fi. Développement continu : seul le format courant des paramètres et des règles est pris en charge, sans migration des anciens formats. Un format incompatible recharge les valeurs par défaut ; les listes téléchargées et MQTT utilisent leurs configurations séparées.
+## Mises à jour depuis GitHub
 
-L'administration HTTP reste limitée à un LAN de confiance et n'utilise plus d'authentification, à la demande du propriétaire. Aucun CORS n'est autorisé. Les mutations demandent l'en-tête non secret `X-YetDNS: 1` afin d'empêcher les soumissions ordinaires provenant d'un autre site. Aucune ouverture de port WAN.
+L’onglet **Mise à jour** compare la version installée à la dernière publication (« release ») du dépôt `YETDNS_UPDATE_REPO` (`rafal83/YetDNS`) via l’API GitHub, au clic ou une fois par jour (réglable). Si une version plus récente existe, le bouton **Installer la mise à jour** :
+
+1. télécharge le fichier de la release correspondant à la carte (`yetdns-esp32s3-n16r8.bin` si la compilation active la PSRAM, sinon `yetdns-esp32s3-8mb.bin`) en HTTPS avec vérification du certificat ;
+2. refuse un fichier qui n’est pas un firmware YetDNS ou qui n’est pas plus récent que la version installée, avant d’écrire en flash ;
+3. compare l’empreinte SHA-256 du fichier reçu à celle publiée par GitHub pour cette pièce jointe (sans empreinte, l’installation est refusée) ;
+4. l’écrit dans l’emplacement inactif, active le nouvel emplacement puis redémarre.
+
+Le nouveau firmware doit retrouver le réseau dans la minute qui suit son démarrage ; sinon, au redémarrage suivant, le chargeur de démarrage revient à la version précédente (annulation automatique). Réglages, règles, listes et statistiques sont conservés.
+
+Publier une version : créer un tag `vX.Y.Z` (`git tag v0.5.0 && git push origin v0.5.0`). Le workflow `.github/workflows/release.yml` compile les deux profils sans identifiants Wi-Fi et joint à la release `yetdns-esp32s3-8mb.bin`, `yetdns-esp32s3-n16r8.bin` (fichiers de mise à jour) et leurs variantes `-first-flash.bin` (image complète à écrire à l’adresse 0x0 pour une première installation). Seules les publications officielles (ni brouillons ni pré-versions) sont proposées. Une carte flashée depuis un poste de développement dont la version n’est pas de la forme `X.Y.Z` se voit proposer n’importe quelle release. La mise à jour n’est pas signée : elle repose sur HTTPS vers GitHub, donc sur le contrôle du dépôt.
 
 ## API locale
 
@@ -118,6 +133,11 @@ L'administration HTTP reste limitée à un LAN de confiance et n'utilise plus d'
 | `/api/mqtt` | GET / PUT | Réglages Home Assistant et état du broker |
 | `/api/rules` | GET / PUT | Lecture/remplacement des règles locales |
 | `/api/apps` | GET / PUT | Catalogue et profils ; PUT `{"client":"192.168.1.50","blocked":["youtube","tiktok"]}`, client vide/absent pour tous |
+| `/api/top?day=N` | GET | Top 10 des domaines bloqués et des appareils avec le plus de blocages ; `day` 0 = aujourd’hui, 1 = hier… jusqu’à 13 |
+| `/api/history` | GET | Requêtes et blocages des jours conservés |
+| `/api/update` | GET / PUT | État de la mise à jour ; PUT `{"auto_check":true}` |
+| `/api/update/check` | POST | Recherche d’une publication plus récente, réponse 202 |
+| `/api/update/install` | POST | Installe la version vérifiée, réponse 202 puis redémarrage |
 | `/api/logs` | GET | Journal en RAM |
 | `/api/logs/clear` | POST | Effacement du journal |
 | `/api/logs/config` | PUT | `{"blocked_only":true}` pour ne conserver que les blocages |

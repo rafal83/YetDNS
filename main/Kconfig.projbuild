@@ -8,6 +8,12 @@ config YETDNS_WIFI_PASSWORD
 config YETDNS_HOSTNAME
     string "DHCP hostname"
     default "yetdns"
+config YETDNS_TIMEZONE
+    string "POSIX time zone for daily statistics"
+    default "CET-1CEST,M3.5.0,M10.5.0/3"
+config YETDNS_UPDATE_REPO
+    string "GitHub repository (owner/name) whose latest release provides firmware updates"
+    default "rafal83/YetDNS"
 config YETDNS_DOH
     bool "Use DNS over HTTPS instead of plaintext UDP upstream"
     default n
