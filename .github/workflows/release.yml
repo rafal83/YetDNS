@@ -1,0 +1,50 @@
+name: Release
+# Pushing a tag such as v0.5.0 builds one firmware per board profile and publishes them.
+# Devices fetch yetdns-<profile>.bin from the latest release (see README, "Mises à jour").
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.1
+    strategy:
+      matrix:
+        include:
+          - profile: esp32s3-8mb
+            defaults: sdkconfig.defaults
+          - profile: esp32s3-n16r8
+            defaults: sdkconfig.defaults;boards/esp32s3-n16r8.defaults
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          dir="build-${{ matrix.profile }}"
+          idf.py -B "$dir" -D "SDKCONFIG=$dir/sdkconfig" -D "SDKCONFIG_DEFAULTS=${{ matrix.defaults }}" -D "PROJECT_VER=${GITHUB_REF_NAME#v}" build
+          mkdir -p dist
+          # Over-the-air file: the exact name the firmware looks for (update_asset in main/update.cpp).
+          cp "$dir/yetdns.bin" "dist/yetdns-${{ matrix.profile }}.bin"
+          # Complete image (bootloader + partition table + app) for the first USB flash at offset 0x0.
+          idf.py -B "$dir" merge-bin -o "$GITHUB_WORKSPACE/dist/yetdns-${{ matrix.profile }}-first-flash.bin"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.profile }}
+          path: dist/*.bin
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.bin
+          generate_release_notes: true

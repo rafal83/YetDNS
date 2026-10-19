@@ -3,6 +3,8 @@
 #include "esp_app_desc.h"
 #include "lists.hpp"
 #include "ha_mqtt.hpp"
+#include "stats.hpp"
+#include "update.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -63,6 +65,7 @@ void load_settings() {
     nvs_close(nvs);
     runtime_init();
     ESP_ERROR_CHECK(apps_init());
+    top_init();
 }
 esp_err_t save_rules(const Rules &value) {
     if (!valid_rules(value)) return ESP_ERR_INVALID_ARG;
@@ -230,6 +233,102 @@ static esp_err_t get_logs(httpd_req_t *req) {
         cJSON_AddNumberToObject(item, "elapsed_us", entry.elapsed_us); cJSON_AddItemToArray(array, item);
     }
     return json_send(req, array);
+}
+static void add_date(cJSON *json, int32_t day) {
+    if (day <= 0) return;
+    int year; unsigned month, date; char text[16];
+    days_to_civil(day, year, month, date);
+    std::snprintf(text, sizeof(text), "%04d-%02u-%02u", year, month, date);
+    cJSON_AddStringToObject(json, "date", text);
+}
+static esp_err_t get_top(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    unsigned offset = 0;
+    char query[24], value[8];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+        httpd_query_key_value(query, "day", value, sizeof(value)) == ESP_OK) {
+        char *end; unsigned long parsed = std::strtoul(value, &end, 10);
+        if (!*value || *end || parsed >= history_days) return error(req, "400 Bad Request", "day must be 0 to 13");
+        offset = parsed;
+    }
+    auto record = std::unique_ptr<DayRecord>(new (std::nothrow) DayRecord{});
+    if (!record) return error(req, "503 Service Unavailable", "Out of memory");
+    if (!top_day(offset, *record)) return error(req, "404 Not Found", "No statistics for this day");
+    auto *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "offset", offset);
+    add_date(json, record->day);
+    cJSON_AddNumberToObject(json, "queries", record->queries);
+    cJSON_AddNumberToObject(json, "blocked", record->blocked);
+    cJSON_AddBoolToObject(json, "approximate", record->approximate != 0);
+    auto *domains = cJSON_AddArrayToObject(json, "domains");
+    for (uint32_t i = 0; i < record->domain_count; ++i) {
+        auto *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "domain", record->domains[i].name);
+        cJSON_AddNumberToObject(item, "count", record->domains[i].count);
+        cJSON_AddItemToArray(domains, item);
+    }
+    auto *clients = cJSON_AddArrayToObject(json, "clients");
+    for (uint32_t i = 0; i < record->client_count; ++i) {
+        auto *item = cJSON_CreateObject(); char address[16], name[40];
+        inet_ntop(AF_INET, &record->clients[i].ip, address, sizeof(address));
+        cJSON_AddStringToObject(item, "ip", address);
+        if (top_client_name(record->clients[i].ip, name, sizeof(name))) cJSON_AddStringToObject(item, "name", name);
+        cJSON_AddNumberToObject(item, "count", record->clients[i].count);
+        cJSON_AddItemToArray(clients, item);
+    }
+    return json_send(req, json);
+}
+static esp_err_t get_update(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    UpdateInfo info; update_snapshot(info);
+    auto *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "current", info.current); cJSON_AddStringToObject(json, "latest", info.latest);
+    cJSON_AddStringToObject(json, "repo", info.repo); cJSON_AddStringToObject(json, "asset", info.asset);
+    cJSON_AddStringToObject(json, "phase", info.phase); cJSON_AddStringToObject(json, "message", info.message);
+    cJSON_AddBoolToObject(json, "available", info.available); cJSON_AddBoolToObject(json, "auto_check", info.auto_check);
+    cJSON_AddNumberToObject(json, "checked_at", info.checked_at);
+    cJSON_AddNumberToObject(json, "downloaded", info.downloaded); cJSON_AddNumberToObject(json, "total", info.total);
+    return json_send(req, json);
+}
+static esp_err_t put_update(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    cJSON *json = read_json(req, 128);
+    if (!json) return ESP_OK;
+    cJSON *value = cJSON_GetObjectItemCaseSensitive(json, "auto_check");
+    bool valid = cJSON_IsBool(value), enabled = cJSON_IsTrue(value);
+    cJSON_Delete(json);
+    if (!valid) return error(req, "400 Bad Request", "auto_check must be boolean");
+    if (update_set_auto_check(enabled) != ESP_OK) return error(req, "500 Internal Server Error", "NVS write failed");
+    return httpd_resp_sendstr(req, "{}");
+}
+static esp_err_t check_update(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    if (!update_request_check()) return error(req, "409 Conflict", "An update operation is already running");
+    httpd_resp_set_status(req, "202 Accepted"); return httpd_resp_sendstr(req, "{}");
+}
+static esp_err_t install_update(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    if (!update_request_install()) return error(req, "409 Conflict", "No verified update is ready to install");
+    httpd_resp_set_status(req, "202 Accepted"); return httpd_resp_sendstr(req, "{}");
+}
+static esp_err_t get_history(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    auto days = std::unique_ptr<DaySummary[]>(new (std::nothrow) DaySummary[history_days]);
+    if (!days) return error(req, "503 Service Unavailable", "Out of memory");
+    size_t count = top_history(days.get(), history_days);
+    int32_t today = top_today();
+    auto *json = cJSON_CreateObject();
+    cJSON_AddBoolToObject(json, "clock_synced", today != 0);
+    auto *array = cJSON_AddArrayToObject(json, "days");
+    for (size_t i = 0; i < count; ++i) {
+        auto *item = cJSON_CreateObject();
+        cJSON_AddNumberToObject(item, "offset", today ? today - days[i].day : 0);
+        add_date(item, days[i].day);
+        cJSON_AddNumberToObject(item, "queries", days[i].queries);
+        cJSON_AddNumberToObject(item, "blocked", days[i].blocked);
+        cJSON_AddItemToArray(array, item);
+    }
+    return json_send(req, json);
 }
 static bool read_uint(cJSON *json, const char *key, uint32_t &value, uint32_t low, uint32_t high) {
     cJSON *item = cJSON_GetObjectItemCaseSensitive(json, key);
@@ -460,7 +559,7 @@ static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t) {
     return error(req, "404 Not Found", "Not found");
 }
 esp_err_t admin_start() {
-    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.max_uri_handlers = 24;
+    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.max_uri_handlers = 32;
     cfg.stack_size = 8192; cfg.lru_purge_enable = true; cfg.max_open_sockets = 3;
     cfg.recv_wait_timeout = 3; cfg.send_wait_timeout = 3;
     httpd_handle_t server;
@@ -475,6 +574,12 @@ esp_err_t admin_start() {
         {"/api/cache/flush", HTTP_POST, clear_cache},
         {"/api/rules", HTTP_GET, get_rules},
         {"/api/rules", HTTP_PUT, put_rules},
+        {"/api/update", HTTP_GET, get_update},
+        {"/api/update", HTTP_PUT, put_update},
+        {"/api/update/check", HTTP_POST, check_update},
+        {"/api/update/install", HTTP_POST, install_update},
+        {"/api/top", HTTP_GET, get_top},
+        {"/api/history", HTTP_GET, get_history},
         {"/api/logs", HTTP_GET, get_logs},
         {"/api/logs/clear", HTTP_POST, erase_logs},
         {"/api/logs/config", HTTP_PUT, configure_logs},
