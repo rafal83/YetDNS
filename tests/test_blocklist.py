@@ -22,6 +22,11 @@ class BlocklistTests(unittest.TestCase):
                          {'ads.example', 'ads2.example', 'tracker.example'})
         self.assertEqual(builder.normalize('café.example'), 'xn--caf-dma.example')
 
+    def test_adblock_plus_header_is_ignored(self):
+        self.assertEqual(self.parse('[Adblock Plus]\n! Title: oisd big\n||tracker.example^\n'), {'tracker.example'})
+        with self.assertRaises(ValueError):
+            self.parse('[not a header|^]')
+
     def test_unsupported_rules_fail(self):
         for text in ('@@||example.com^', '||example.com^$third-party', '*.example.com', 'bad..example', '1.2.3.4'):
             with self.subTest(text=text), self.assertRaises(ValueError):

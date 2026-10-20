@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
     assert(list_update_delay(0, 200, 24, true) == 0);
     assert(list_update_delay(10000, 100, 1, true) == 3600);
     char pool[4096]; uint32_t table[128]; ListBuilder builder(pool, sizeof(pool), table, 128);
-    const std::string text = "\xef\xbb\xbf# comment\r\n0.0.0.0 DOUBLECLICK.NET. googlesyndication.com\n||googleadservices.com^\n127.0.0.1 localhost ads.example\nfe80::1%lo0 localhost\nff02::1 ip6-allnodes\n0.0.0.0 0.0.0.0\n127.0.0.1 local\nads.example";
+    const std::string text = "\xef\xbb\xbf[Adblock Plus]\r\n! Title: oisd\r\n# comment\r\n0.0.0.0 DOUBLECLICK.NET. googlesyndication.com\n||googleadservices.com^\n127.0.0.1 localhost ads.example\nfe80::1%lo0 localhost\nff02::1 ip6-allnodes\n0.0.0.0 0.0.0.0\n127.0.0.1 local\nads.example";
     for (uint8_t c : text) assert(builder.feed(&c, 1));
     assert(builder.finish_source() && builder.count() == 4);
     std::vector<uint8_t> bytes; assert(builder.write(writer, &bytes));
@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     std::ifstream file(argv[1], std::ios::binary);
     std::vector<uint8_t> expected((std::istreambuf_iterator<char>(file)), {});
     assert(bytes == expected); // independent Python compiler must produce identical wire image
-    for (const char *invalid : {"@@||safe.example^", "||ads.example^$third-party", "<html>error</html>", "1.2.3.4", "bad..example"}) {
+    for (const char *invalid : {"@@||safe.example^", "||ads.example^$third-party", "<html>error</html>", "[not a header|^]", "1.2.3.4", "bad..example"}) {
         ListBuilder bad(pool, sizeof(pool), table, 128);
         bool valid = bad.feed(reinterpret_cast<const uint8_t *>(invalid), std::strlen(invalid)) && bad.finish_source();
         assert(!valid && bad.error()[0]);

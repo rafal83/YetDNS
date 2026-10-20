@@ -32,6 +32,8 @@ def parse_file(path):
         line = raw.strip()
         if not line or line.startswith(('#', '!')):
             continue
+        if re.fullmatch(r'\[[^\[|^/$]+\]', line):  # Adblock Plus header, e.g. [Adblock Plus]
+            continue
         line = line.split('#', 1)[0].strip()
         if line.startswith('||') and line.endswith('^'):
             values = [line[2:-1]]

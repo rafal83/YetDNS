@@ -8,7 +8,7 @@ Ouvrir l'adresse IP affichée sur le port série (carte actuellement déployée 
 
 Fonctions disponibles :
 
-- **Listes de blocage** : HaGeZi Light, HaGeZi Normal, StevenBlack et URL HTTPS personnalisées ; jusqu'à six sources, activation individuelle, actualisation manuelle et intervalle automatique de 1 à 720 heures.
+- **Listes de blocage** : HaGeZi Light, HaGeZi Normal, StevenBlack, OISD Small, OISD Big et URL HTTPS personnalisées ; jusqu'à six sources, activation individuelle, actualisation manuelle et intervalle automatique de 1 à 720 heures.
 - **Applications** : catalogue de 43 services (YouTube, TikTok, Instagram, jeux, messageries, streaming…), recherche et catégories. Sélection globale ou blocages supplémentaires par IPv4, avec 16 profils. Les choix persistent en NVS sans téléchargement au démarrage.
 - **Liste blanche / Liste noire** : domaines autorisés ou bloqués, un par ligne, globalement ou pour une IP. Les deux listes partagent les 32 règles locales avec les réécritures et conservent les règles des autres périmètres. Le JSON reste accessible dans Règles locales.
 - **Paramètres avancés** : résolveurs IPv4 principal/secondaire, UDP ou DoH, URL HTTPS, timeout de 500 à 10 000 ms, limite de 0 à 1 000 requêtes/s/appareil, restriction au sous-réseau local et journalisation.
@@ -57,7 +57,7 @@ La méthode de [dnsfiltertest.com](https://www.dnsfiltertest.com/my-connection) 
 
 Au redémarrage, la dernière liste validée et la date de sa mise à jour sont relues en flash. Un redémarrage seul ne relance pas le téléchargement : l'échéance restante est recalculée après synchronisation de l'heure. Un téléchargement a lieu si la liste manque, si les sources ont changé, si l'intervalle automatique est écoulé, ou sur demande manuelle. Le bouton « Enregistrer et actualiser » demande explicitement une mise à jour.
 
-L'ESP télécharge et compile les listes lui-même, sans ordinateur ni serveur de compilation. Formats pris en charge : domaines ASCII/Punycode, hosts (`0.0.0.0 domaine`) et règles simples `||domaine^`. Les commentaires, fins CRLF et fichiers sans saut de ligne final sont acceptés. Regex, exceptions `@@`, modificateurs et filtres cosmétiques sont refusés : ajouter les exceptions dans les règles locales.
+L'ESP télécharge et compile les listes lui-même, sans ordinateur ni serveur de compilation. Formats pris en charge : domaines ASCII/Punycode, hosts (`0.0.0.0 domaine`) et règles simples `||domaine^`. Les commentaires, fins CRLF et fichiers sans saut de ligne final sont acceptés. L'en-tête `[Adblock Plus]` est ignoré, ce qui permet d'utiliser directement `https://small.oisd.nl` ou `https://big.oisd.nl` (233 000 domaines, 5,3 Mio compilés : profil 16 Mo uniquement, la partition de liste du profil 8 Mo est trop petite). Regex, exceptions `@@`, modificateurs et filtres cosmétiques sont refusés : ajouter les exceptions dans les règles locales.
 
 La fusion utilise un tableau de préparation en RAM avec comparaison exacte : les hachages servent uniquement au dédoublonnage, sans faux positif. Le résultat trié reste en flash et un index de préfixes de 1 Kio accélère les recherches. Sur la carte N16R8, la préparation utilise au maximum environ 7 Mio de PSRAM ; une liste trop grande échoue explicitement, sans troncature silencieuse.
 
