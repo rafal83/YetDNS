@@ -54,6 +54,11 @@ bool ListBuilder::line() {
     if (line_n_ >= 3 && uint8_t(s[0]) == 0xef && uint8_t(s[1]) == 0xbb && uint8_t(s[2]) == 0xbf) s += 3;
     while (*s == ' ' || *s == '\t' || *s == '\r') ++s;
     if (!*s || *s == '#' || *s == '!') return true;
+    if (*s == '[') { // Adblock Plus header such as "[Adblock Plus]"
+        size_t header = std::strlen(s);
+        while (header && (s[header - 1] == ' ' || s[header - 1] == '\t' || s[header - 1] == '\r')) --header;
+        if (header > 2 && s[header - 1] == ']' && !std::strpbrk(s + 1, "[|^/$")) return true;
+    }
     char *comment = std::strchr(s, '#'); if (comment) *comment = 0;
     size_t len = std::strlen(s);
     while (len && (s[len - 1] == ' ' || s[len - 1] == '\t' || s[len - 1] == '\r')) s[--len] = 0;
