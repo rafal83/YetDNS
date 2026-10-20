@@ -186,48 +186,68 @@ bool inspect_aliases(const uint8_t *p, size_t n, bool (*denied)(const char *, vo
     return pos == n;
 }
 bool Blocklist::load(const uint8_t *data, size_t size) {
-    count_ = 0; offsets_ = pool_ = nullptr;
-    if (size < 24 || std::memcmp(data, "YDNS", 4) || le32(data + 4) != 1) return false;
+    count_ = blocks_ = 0; index_ = data_ = nullptr;
+    if (size < 24 || std::memcmp(data, "YDNS", 4) || le32(data + 4) != 2) return false;
     uint32_t count = le32(data + 8), pool = le32(data + 12);
-    if (count > (size - 24) / 4 || size != 20ull + (uint64_t(count) + 1) * 4 + pool) return false;
+    uint64_t blocks = (uint64_t(count) + list_block_entries - 1) / list_block_entries;
+    if (size != 20ull + (blocks + 1) * 4 + pool) return false;
     uint32_t crc = ~0u;
     for (size_t i = 20; i < size; ++i) {
         crc ^= data[i];
         for (int j = 0; j < 8; ++j) crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1)));
     }
     if (~crc != le32(data + 16)) return false;
-    const uint8_t *offsets = data + 20;
-    if (le32(offsets) || le32(offsets + count * 4) != pool) return false;
-    for (uint32_t i = 0; i < count; ++i) {
-        uint32_t a = le32(offsets + i * 4), b = le32(offsets + (i + 1) * 4);
-        if (b <= a || b - a > 253 || b > pool) return false;
+    const uint8_t *index = data + 20, *body = index + (blocks + 1) * 4;
+    if (le32(index) || le32(index + blocks * 4) != pool) return false;
+    // Walk every entry so that lookups never read outside the image.
+    uint32_t position = 0;
+    for (uint64_t block = 0; block < blocks; ++block) {
+        if (le32(index + block * 4) != position) return false;
+        uint32_t entries = std::min<uint64_t>(list_block_entries, count - block * list_block_entries), previous = 0;
+        for (uint32_t k = 0; k < entries; ++k) {
+            if (position + 2 > pool) return false;
+            uint32_t shared = body[position], suffix = body[position + 1];
+            if (shared > previous || (!k && shared) || !suffix || shared + suffix > 253 || position + 2 + suffix > pool) return false;
+            position += 2 + suffix; previous = shared + suffix;
+        }
     }
-    count_ = count; offsets_ = offsets; pool_ = offsets + (size_t(count) + 1) * 4;
-    // Buckets use the first byte; the source compiler guarantees lexical ordering.
-    uint32_t cursor = 0;
-    for (unsigned c = 0; c <= 256; ++c) {
-        while (cursor < count_ && pool_[le32(offsets_ + cursor * 4)] < c) ++cursor;
-        prefix_[c] = cursor;
-    }
+    if (position != pool) return false;
+    count_ = count; blocks_ = uint32_t(blocks); index_ = index; data_ = body;
     return true;
 }
+static int compare_keys(const uint8_t *a, size_t a_len, const char *b, size_t b_len) {
+    int cmp = std::memcmp(a, b, std::min(a_len, b_len));
+    return cmp ? cmp : a_len < b_len ? -1 : a_len > b_len ? 1 : 0;
+}
+// Exact lookup of a reversed name: binary search on block heads, then a short sequential decode.
+bool Blocklist::find(const char *key, size_t length) const {
+    uint32_t lo = 0, hi = blocks_;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        const uint8_t *head = data_ + le32(index_ + mid * 4);
+        if (compare_keys(head + 2, head[1], key, length) <= 0) lo = mid + 1; else hi = mid;
+    }
+    if (!lo) return false;
+    uint32_t block = lo - 1, entries = std::min<uint32_t>(list_block_entries, count_ - block * list_block_entries);
+    const uint8_t *p = data_ + le32(index_ + block * 4);
+    uint8_t entry[256];
+    for (uint32_t k = 0; k < entries; ++k) {
+        size_t shared = p[0], suffix = p[1]; p += 2;
+        std::memcpy(entry + shared, p, suffix); p += suffix;
+        int cmp = compare_keys(entry, shared + suffix, key, length);
+        if (!cmp) return true;
+        if (cmp > 0) return false;
+    }
+    return false;
+}
 bool Blocklist::contains(const char *domain) const {
-    const char *suffix = domain;
-    do {
-        size_t len = std::strlen(suffix);
-        unsigned first = static_cast<unsigned char>(suffix[0]);
-        uint32_t lo = count_ ? prefix_[first] : 0, hi = count_ ? prefix_[first + 1] : 0;
-        while (lo < hi) {
-            uint32_t mid = lo + (hi - lo) / 2;
-            uint32_t a = le32(offsets_ + mid * 4), b = le32(offsets_ + (mid + 1) * 4);
-            int cmp = std::memcmp(suffix, pool_ + a, std::min<size_t>(len, b - a));
-            if (!cmp) cmp = len < b - a ? -1 : len > b - a ? 1 : 0;
-            if (!cmp) return true;
-            if (cmp < 0) hi = mid; else lo = mid + 1;
-        }
-        const char *dot = std::strchr(suffix, '.');
-        suffix = dot ? dot + 1 : nullptr;
-    } while (suffix);
+    size_t length = std::strlen(domain);
+    if (!blocks_ || !length || length > 253) return false;
+    char reversed[256];
+    for (size_t i = 0; i < length; ++i) reversed[i] = domain[length - 1 - i];
+    // A name is blocked when it, or any parent domain, is listed: exact lookup of each label-boundary prefix.
+    for (size_t end = 1; end <= length; ++end)
+        if ((end == length || reversed[end] == '.') && find(reversed, end)) return true;
     return false;
 }
 size_t Cache::get(const uint8_t *query, size_t n, uint8_t *out, uint32_t now) {
