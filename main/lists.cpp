@@ -198,8 +198,8 @@ static bool update(const ListsConfig &cfg) {
     uint32_t caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     if (!available) { available = std::min<size_t>(65536, heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 3); caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT; }
     size_t budget = available > 1024 * 1024 ? std::min<size_t>(available - 512 * 1024, 7168 * 1024) : available;
-    size_t table_slots = 64;
-    while (table_slots < 524288 && table_slots * 2 * 4 <= budget / 3) table_slots *= 2;
+    // Table at 3/4 load costs ~5 bytes per domain against ~20 for its text: about a fifth of the workspace.
+    size_t table_slots = std::clamp<size_t>(budget / 19, 64, 1 << 20);
     size_t pool_size = budget > table_slots * 4 ? budget - table_slots * 4 : 0;
     if (pool_size < 1024) { message("Not enough memory to prepare lists"); return false; }
     auto pool = std::unique_ptr<char, decltype(&heap_caps_free)>(static_cast<char *>(heap_caps_malloc(pool_size, caps)), heap_caps_free);
@@ -214,6 +214,7 @@ static bool update(const ListsConfig &cfg) {
     }
     int target = active_slot == 0 ? 1 : 0;
     size_t size = builder->image_size();
+    if (!size) { message("Merged list is empty; previous list retained"); return false; }
     if (size > slots[target]->size - image_offset) { message("Merged list exceeds flash capacity; previous list retained"); return false; }
     if (signature(lists_config()) != signature(cfg)) { message("Sources changed; update rescheduled"); return false; }
     message("Writing and verifying inactive list");

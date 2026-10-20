@@ -36,10 +36,12 @@ constexpr size_t rule_max = 32;
 struct Rules { uint32_t version{1}, count{}; Rule items[rule_max]{}; };
 bool evaluate_rules(const Rules &rules, const char *name, uint32_t client, Action &action, uint8_t *address);
 
+// Image v2: sorted reversed domains ("com.example.ads"), front-coded in blocks of list_block_entries.
+constexpr uint32_t list_block_entries = 16;
 class Blocklist {
-    const uint8_t *offsets_{}, *pool_{};
-    uint32_t count_{};
-    uint32_t prefix_[257]{}; // 1 KiB RAM narrows each flash binary search
+    const uint8_t *index_{}, *data_{}; // per-block start offsets, then the front-coded entries
+    uint32_t count_{}, blocks_{};
+    bool find(const char *key, size_t length) const;
 public:
     bool load(const uint8_t *data, size_t size);
     bool contains(const char *domain) const;

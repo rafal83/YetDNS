@@ -1,8 +1,13 @@
 """Compile local hosts/domain/limited Adblock lists to an exact flash index.
 
 No downloads or hashes. Unsupported rules fail rather than change their meaning.
-Format: YDNS, version:u32, count:u32, pool_size:u32, crc32(payload):u32;
-count+1 little endian u32 offsets followed by sorted ASCII domain bytes.
+Format (version 2): YDNS, version:u32, count:u32, data_size:u32, crc32(payload):u32;
+then ceil(count/16)+1 little endian u32 block offsets and the front-coded entries.
+Domains are reversed ("com.example.ads") and sorted bytewise. Each entry is
+shared:u8, suffix_len:u8, suffix bytes; the first entry of a block shares nothing.
+Domains already covered by a listed parent are dropped (same blocking result).
+Adblock Plus lists (header "[Adblock Plus...]") are read leniently: only ||domain^ and
+||domain^$third-party are kept; every other rule is skipped.
 """
 import argparse
 import ipaddress
@@ -26,13 +31,33 @@ def normalize(value):
     raise ValueError(f'IP address is not a domain: {value!r}')
 
 
+def abp_domain(line):
+    """Domain of an Adblock Plus rule DNS can express (||domain^ or ||domain^$third-party), else None."""
+    match = re.fullmatch(r'\|\|([^^]*)\^(?:\$(?:third-party|3p))?', line)
+    if not match or not match.group(1).isascii():
+        return None
+    value = match.group(1).lower().rstrip('.')
+    if value in ('localhost', 'local', 'localhost.localdomain', 'broadcasthost') or value.startswith('ip6-'):
+        return None
+    try:
+        return normalize(value)
+    except (ValueError, UnicodeError):
+        return None
+
+
 def parse_file(path):
-    domains = set()
+    domains, abp = set(), False
     for line_no, raw in enumerate(Path(path).read_text(encoding='utf-8-sig').splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith(('#', '!')):
             continue
         if re.fullmatch(r'\[[^\[|^/$]+\]', line):  # Adblock Plus header, e.g. [Adblock Plus]
+            abp = line.lower().startswith('[adblock')
+            continue
+        if abp:  # keep what DNS can express, skip every other rule (exceptions, URL patterns, cosmetic...)
+            domain = abp_domain(line)
+            if domain:
+                domains.add(domain)
             continue
         line = line.split('#', 1)[0].strip()
         if line.startswith('||') and line.endswith('^'):
@@ -56,14 +81,34 @@ def parse_file(path):
     return domains
 
 
+BLOCK_ENTRIES = 16
+
+
+def prune(domains):
+    """Drop every domain whose parent domain is also listed."""
+    kept = set()
+    for name in domains:
+        labels = name.split('.')
+        if not any('.'.join(labels[i:]) in domains for i in range(1, len(labels))):
+            kept.add(name)
+    return kept
+
+
 def compile_domains(domains):
-    values = [s.encode('ascii') for s in sorted(domains)]
-    offsets, pos = [0], 0
-    for value in values:
-        pos += len(value)
-        offsets.append(pos)
-    payload = struct.pack(f'<{len(offsets)}I', *offsets) + b''.join(values)
-    return struct.pack('<4sIIII', b'YDNS', 1, len(values), pos, zlib.crc32(payload)) + payload
+    values = sorted(s[::-1].encode('ascii') for s in prune(domains))
+    offsets, body, previous = [], bytearray(), b''
+    for i, value in enumerate(values):
+        shared = 0
+        if i % BLOCK_ENTRIES:
+            while shared < min(len(value), len(previous)) and value[shared] == previous[shared]:
+                shared += 1
+        else:
+            offsets.append(len(body))
+        body += bytes((shared, len(value) - shared)) + value[shared:]
+        previous = value
+    offsets.append(len(body))
+    payload = struct.pack(f'<{len(offsets)}I', *offsets) + bytes(body)
+    return struct.pack('<4sIIII', b'YDNS', 2, len(values), len(body), zlib.crc32(payload)) + payload
 
 
 def main():
@@ -77,7 +122,7 @@ def main():
     blob = compile_domains(domains)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(blob)
-    print(f'YetDNS: {len(domains):,} exact domains, {len(blob):,} bytes')
+    print(f'YetDNS: {len(domains):,} domains read, {len(blob):,} bytes')
 
 
 if __name__ == '__main__':
