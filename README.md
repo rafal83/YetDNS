@@ -71,7 +71,7 @@ Serveur UDP/TCP avec connexions partielles/persistantes, inspection CNAME/DNAME,
 
 Le cache positif vieillit chaque TTL et expire au minimum des TTL. Il ne conserve pas les réponses tronquées, négatives, à TTL nul, ni les requêtes EDNS comportant des options. Les requêtes DO/CD sont distinctes. Paquets : maximum 4096 octets, UDP plafonné à 1232 ou 512 sans EDNS. Une réponse trop grande déclenche TC ; le résolveur amont est repris en TCP si nécessaire.
 
-Le chemin DNS local n'alloue pas de mémoire applicative. Les requêtes amont, les mises à jour HTTPS et MQTT utilisent des tâches séparées. Wi-Fi sans économie d'énergie, CPU 240 MHz, cache de 128 entrées en PSRAM sur N16R8. Les files sont bornées et une surcharge renvoie SERVFAIL. Aucune supériorité de débit sur d'autres projets n'est encore démontrée par un banc comparatif.
+Le chemin DNS local n'alloue pas de mémoire applicative. Les requêtes amont, les mises à jour HTTPS et MQTT utilisent des tâches séparées. Wi-Fi sans économie d'énergie, CPU 240 MHz, cache de 128 entrées en PSRAM sur N16R8. Les files sont bornées : 16 requêtes simultanées vers l'amont sur la carte N16R8 (tampons en PSRAM), 8 sans PSRAM ; au-delà, une surcharge renvoie SERVFAIL et incrémente le compteur « saturations ». Aucune supériorité de débit sur d'autres projets n'est encore démontrée par un banc comparatif.
 
 En DoH, certificats et noms sont vérifiés ; aucun repli en clair des requêtes client. L'heure SNTP et le DNS de bootstrap restent nécessaires. La résolution initiale des noms des serveurs utilise le DNS de bootstrap en clair. Pour NextDNS, renseigner `https://dns.nextdns.io/VOTRE_PROFIL` comme URL DoH. La validation DNSSEC appartient au résolveur amont ; les réponses locales n'affirment jamais AD.
 
