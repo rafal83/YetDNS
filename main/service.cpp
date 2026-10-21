@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstring>
 #include <ctime>
+#include <new>
 #include <fcntl.h>
 #include <unistd.h>
 #include "lwip/sockets.h"
@@ -77,7 +78,7 @@ struct Job {
     int64_t started{};
     bool cacheable{}, success{};
 };
-static Job jobs[CONFIG_YETDNS_PENDING];
+static Job *jobs; // PSRAM when available: a pool of 16 would otherwise cost 70 KiB of internal RAM
 static QueueHandle_t free_jobs, work_jobs, done_jobs;
 struct Client {
     int fd{-1}; uint32_t generation{};
@@ -405,11 +406,15 @@ esp_err_t service_start() {
     if (!entries) entries = static_cast<CacheEntry *>(heap_caps_calloc(CONFIG_YETDNS_CACHE_ENTRIES, sizeof(CacheEntry), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     if (!entries) return ESP_ERR_NO_MEM;
     cache = Cache(entries, CONFIG_YETDNS_CACHE_ENTRIES);
+    void *job_memory = heap_caps_malloc(CONFIG_YETDNS_PENDING * sizeof(Job), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!job_memory) job_memory = heap_caps_malloc(CONFIG_YETDNS_PENDING * sizeof(Job), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!job_memory) return ESP_ERR_NO_MEM;
+    jobs = new (job_memory) Job[CONFIG_YETDNS_PENDING];
     free_jobs = xQueueCreate(CONFIG_YETDNS_PENDING, sizeof(Job *));
     work_jobs = xQueueCreate(CONFIG_YETDNS_PENDING, sizeof(Job *));
     done_jobs = xQueueCreate(CONFIG_YETDNS_PENDING, sizeof(Job *));
     if (!free_jobs || !work_jobs || !done_jobs) return ESP_ERR_NO_MEM;
-    for (auto &j : jobs) { Job *ptr = &j; xQueueSend(free_jobs, &ptr, 0); }
+    for (int i = 0; i < CONFIG_YETDNS_PENDING; ++i) { Job *ptr = &jobs[i]; xQueueSend(free_jobs, &ptr, 0); }
     for (int i = 0; i < CONFIG_YETDNS_WORKERS; ++i)
         if (xTaskCreate(worker, "dns_upstream", 10240, nullptr, 5, nullptr) != pdPASS) return ESP_ERR_NO_MEM;
     if (xTaskCreate(server, "dns_server", 12288, nullptr, 8, nullptr) != pdPASS) return ESP_ERR_NO_MEM;
