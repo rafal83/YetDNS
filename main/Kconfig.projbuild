@@ -44,7 +44,7 @@ config YETDNS_CACHE_ENTRIES
 config YETDNS_RATE_LIMIT
     int "Per IPv4 client queries/second (0 disables)"
     range 0 1000
-    default 100
+    default 500
 config YETDNS_CLIENT_SUBNET_ONLY
     bool "Only accept DNS from the directly connected IPv4 subnet"
     default y
