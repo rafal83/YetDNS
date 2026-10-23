@@ -1,5 +1,5 @@
 name: Release
-# Pushing a tag such as v0.5.0 builds one firmware per board profile and publishes them.
+# Pushing a tag such as v0.5.0 builds the ESP32-S3 N16R8 firmware and publishes it.
 # Devices fetch yetdns-<profile>.bin from the latest release (see README, "Mises à jour").
 on:
   push:
@@ -10,13 +10,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: espressif/idf:v5.5.1
-    strategy:
-      matrix:
-        include:
-          - profile: esp32s3-8mb
-            defaults: sdkconfig.defaults
-          - profile: esp32s3-n16r8
-            defaults: sdkconfig.defaults;boards/esp32s3-n16r8.defaults
     steps:
       - uses: actions/checkout@v4
       - name: Build
@@ -24,16 +17,16 @@ jobs:
         run: |
           . "$IDF_PATH/export.sh"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          dir="build-${{ matrix.profile }}"
-          idf.py -B "$dir" -D "SDKCONFIG=$dir/sdkconfig" -D "SDKCONFIG_DEFAULTS=${{ matrix.defaults }}" -D "PROJECT_VER=${GITHUB_REF_NAME#v}" build
+          dir="build-esp32s3-n16r8"
+          idf.py -B "$dir" -D "SDKCONFIG=$dir/sdkconfig" -D "PROJECT_VER=${GITHUB_REF_NAME#v}" build
           mkdir -p dist
           # Over-the-air file: the exact name the firmware looks for (update_asset in main/update.cpp).
-          cp "$dir/yetdns.bin" "dist/yetdns-${{ matrix.profile }}.bin"
+          cp "$dir/yetdns.bin" "dist/yetdns-esp32s3-n16r8.bin"
           # Complete image (bootloader + partition table + app) for the first USB flash at offset 0x0.
-          idf.py -B "$dir" merge-bin -o "$GITHUB_WORKSPACE/dist/yetdns-${{ matrix.profile }}-first-flash.bin"
+          idf.py -B "$dir" merge-bin -o "$GITHUB_WORKSPACE/dist/yetdns-esp32s3-n16r8-first-flash.bin"
       - uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ matrix.profile }}
+          name: firmware-esp32s3-n16r8
           path: dist/*.bin
   publish:
     needs: build

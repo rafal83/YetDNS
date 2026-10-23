@@ -152,8 +152,12 @@ static esp_err_t get_stats(httpd_req_t *req) {
     cJSON_AddNumberToObject(json, "psram_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     cJSON_AddNumberToObject(json, "uptime_s", esp_timer_get_time() / 1000000);
     cJSON_AddBoolToObject(json, "clock_synced", time(nullptr) > 1735689600);
-    cJSON_AddNumberToObject(json, "cache_capacity", CONFIG_YETDNS_CACHE_ENTRIES);
-    cJSON_AddNumberToObject(json, "pending_capacity", CONFIG_YETDNS_PENDING);
+    auto capacity = service_capacity();
+    cJSON_AddNumberToObject(json, "internal_heap_min", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json, "cache_capacity", capacity.cache_entries);
+    cJSON_AddNumberToObject(json, "pending_capacity", capacity.pending);
+    cJSON_AddNumberToObject(json, "workers", capacity.workers);
+    cJSON_AddNumberToObject(json, "stack_min_free", capacity.stack_min_free);
     cJSON_AddBoolToObject(json, "query_logging", query_logging.load());
     cJSON_AddBoolToObject(json, "log_blocked_only", log_blocked_only.load());
     return json_send(req, json);

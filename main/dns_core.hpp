@@ -55,11 +55,16 @@ struct CacheEntry {
     uint8_t response[cache_packet_max]{};
 };
 // Single owner: the DNS event loop. No locks, heap allocation or background expiry.
+// The optional hash array (one word per entry, ideally in fast RAM) keeps lookups from touching the
+// large entries, which may sit in slow external memory; without it every lookup scans the entries.
 class Cache {
     CacheEntry *entries_;
+    uint32_t *hashes_;
     size_t count_, next_{};
 public:
-    Cache(CacheEntry *entries, size_t count) : entries_(entries), count_(count) {}
+    Cache(CacheEntry *entries, size_t count, uint32_t *hashes = nullptr) : entries_(entries), hashes_(hashes), count_(count) {
+        if (hashes_) for (size_t i = 0; i < count_; ++i) hashes_[i] = 0;
+    }
     size_t get(const uint8_t *query, size_t n, uint8_t *out, uint32_t now);
     void put(const uint8_t *query, size_t n, const uint8_t *response, size_t rn, uint32_t now);
     void clear();

@@ -30,17 +30,17 @@ config YETDNS_UPSTREAM_SECONDARY
     string "Secondary UDP upstream IPv4"
     default "9.9.9.9"
 config YETDNS_WORKERS
-    int "Concurrent upstream workers"
-    range 1 3
-    default 2
+    int "Concurrent upstream workers (about 11 KiB of internal RAM each)"
+    range 1 8
+    default 4
 config YETDNS_PENDING
-    int "Bounded upstream job pool"
-    range 4 16
-    default 8
+    int "Bounded upstream job pool (about 4.4 KiB of PSRAM per job)"
+    range 4 128
+    default 64
 config YETDNS_CACHE_ENTRIES
-    int "DNS cache entries (about 1.6 KiB per entry)"
-    range 8 128
-    default 32
+    int "DNS cache entries (about 1.6 KiB of PSRAM per entry)"
+    range 8 2048
+    default 512
 config YETDNS_RATE_LIMIT
     int "Per IPv4 client queries/second (0 disables)"
     range 0 1000
