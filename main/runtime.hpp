@@ -5,7 +5,7 @@
 
 namespace yetdns {
 struct RuntimeConfig {
-    uint32_t version{2}, rate_limit{100}, timeout_ms{1500};
+    uint32_t version{2}, rate_limit{500}, timeout_ms{1500};
     bool doh{}, logging{true}, subnet_only{true};
     char primary[16]{}, secondary[16]{}, doh_url[384]{};
     bool block_page{};
