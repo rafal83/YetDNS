@@ -142,6 +142,7 @@ Publier une version : créer un tag `vX.Y.Z` (`git tag v0.5.0 && git push origin
 | `/api/logs/clear` | POST | Effacement du journal |
 | `/api/logs/config` | PUT | `{"blocked_only":true}` pour ne conserver que les blocages |
 | `/api/cache/flush` | POST | Purge du cache |
+| `/api/restart` | POST | Redémarre la carte après 1 s (bouton « Redémarrer » du tableau de bord) |
 
 ## Tests et mesures
 
