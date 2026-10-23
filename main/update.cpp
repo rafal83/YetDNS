@@ -24,12 +24,8 @@
 
 namespace yetdns {
 namespace {
-// The two release binaries differ by PSRAM support, so the running build tells which one fits this board.
-#if CONFIG_SPIRAM
+// One board is supported (ESP32-S3 N16R8), hence one release binary.
 constexpr char update_asset[] = "yetdns-esp32s3-n16r8.bin";
-#else
-constexpr char update_asset[] = "yetdns-esp32s3-8mb.bin";
-#endif
 constexpr uint32_t valid_time = 1735689600;
 constexpr uint32_t check_interval_s = 24 * 3600, retry_interval_s = 3600, first_check_s = 120, confirm_after_s = 60;
 constexpr size_t release_json_max = 32 * 1024;

@@ -250,10 +250,18 @@ bool Blocklist::contains(const char *domain) const {
         if ((end == length || reversed[end] == '.') && find(reversed, end)) return true;
     return false;
 }
+// FNV-1a over the key without the transaction ID, never 0 (0 marks an empty slot).
+static uint32_t key_hash(const uint8_t *query, size_t n) {
+    uint32_t h = 2166136261u;
+    for (size_t i = 2; i < n; ++i) h = (h ^ query[i]) * 16777619u;
+    return h ? h : 1;
+}
 size_t Cache::get(const uint8_t *query, size_t n, uint8_t *out, uint32_t now) {
     Question q;
     if (!parse_query(query, n, q) || !q.cacheable) return 0;
+    uint32_t hash = hashes_ ? key_hash(query, n) : 0;
     for (size_t i = 0; i < count_; ++i) {
+        if (hashes_ && hashes_[i] != hash) continue;
         auto &e = entries_[i];
         uint32_t age = now - e.inserted;
         if (!e.response_n || age >= e.lifetime || e.query_n != n || std::memcmp(e.key + 2, query + 2, n - 2)) continue;
@@ -267,9 +275,13 @@ void Cache::put(const uint8_t *query, size_t n, const uint8_t *response, size_t 
     Question q; uint32_t ttl;
     if (rn > cache_packet_max || !parse_query(query, n, q) || !q.cacheable ||
         !matching_response(response, rn, query, n) || !cache_ttl(response, rn, ttl) || !count_) return;
-    auto &e = entries_[next_++ % count_];
+    size_t slot = next_++ % count_;
+    auto &e = entries_[slot];
     e.inserted = now; e.lifetime = ttl; e.query_n = n; e.response_n = rn;
     std::memcpy(e.key, query, n); std::memcpy(e.response, response, rn);
+    if (hashes_) hashes_[slot] = key_hash(query, n);
 }
-void Cache::clear() { for (size_t i = 0; i < count_; ++i) entries_[i].response_n = 0; }
+void Cache::clear() {
+    for (size_t i = 0; i < count_; ++i) { entries_[i].response_n = 0; if (hashes_) hashes_[i] = 0; }
+}
 } // namespace yetdns

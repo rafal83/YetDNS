@@ -1,6 +1,6 @@
 # YetDNS 0.6 sur ESP32
 
-Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Profil 8 Mo également disponible. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
+Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Seule cette carte (**ESP32-S3 N16R8**) est supportée. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
 
 ## Utilisation
 
@@ -63,7 +63,7 @@ La fusion utilise un tableau de préparation en RAM avec comparaison exacte : le
 
 Deux partitions indépendantes conservent la liste active et la nouvelle version. Les téléchargements doivent tous réussir, les fichiers ne doivent pas être vides, et le CRC est vérifié avant publication. Un marqueur final valide la nouvelle copie. En cas d'échec, de coupure ou de capacité dépassée, la dernière copie valide reste disponible au démarrage. Les mises à jour n'effacent pas les règles locales. Un échec automatique est retenté après cinq minutes.
 
-Si aucune source n'est activée, la liste compilée `data/blocked.txt` est utilisée (quatre domaines de démonstration). La capacité réelle dépend de la RAM disponible, de la taille des domaines et des partitions. Le profil 8 Mo (partitions de liste de 2,25 Mio) accepte OISD Small (0,75 Mio) mais pas OISD Big (2,9 Mio) ; il demande aussi de la PSRAM pour préparer de grandes listes.
+Si aucune source n'est activée, la liste compilée `data/blocked.txt` est utilisée (quatre domaines de démonstration). La capacité réelle dépend de la RAM disponible, de la taille des domaines et des partitions. Les deux partitions de liste font environ 6 Mo chacune ; la PSRAM sert à préparer les grandes listes (OISD Big, 2,9 Mio, y tient).
 
 ## DNS et performances
 
@@ -71,7 +71,7 @@ Serveur UDP/TCP avec connexions partielles/persistantes, inspection CNAME/DNAME,
 
 Le cache positif vieillit chaque TTL et expire au minimum des TTL. Il ne conserve pas les réponses tronquées, négatives, à TTL nul, ni les requêtes EDNS comportant des options. Les requêtes DO/CD sont distinctes. Paquets : maximum 4096 octets, UDP plafonné à 1232 ou 512 sans EDNS. Une réponse trop grande déclenche TC ; le résolveur amont est repris en TCP si nécessaire.
 
-Le chemin DNS local n'alloue pas de mémoire applicative. Les requêtes amont, les mises à jour HTTPS et MQTT utilisent des tâches séparées. Wi-Fi sans économie d'énergie, CPU 240 MHz, cache de 128 entrées en PSRAM sur N16R8. Les files sont bornées : 16 requêtes simultanées vers l'amont sur la carte N16R8 (tampons en PSRAM), 8 sans PSRAM ; au-delà, une surcharge renvoie SERVFAIL et incrémente le compteur « saturations ». Aucune supériorité de débit sur d'autres projets n'est encore démontrée par un banc comparatif.
+Le chemin DNS local n'alloue pas de mémoire applicative. Les requêtes amont, les mises à jour HTTPS et MQTT utilisent des tâches séparées. Wi-Fi sans économie d'énergie, CPU 240 MHz, cache de 512 entrées en PSRAM, indexé par un tableau de hachages en RAM interne pour que la recherche ne parcoure pas la PSRAM. Les files sont bornées : 4 workers amont (environ 11 Kio de RAM interne chacun) et 64 requêtes en attente (tampons en PSRAM) ; au-delà, une surcharge renvoie SERVFAIL et incrémente le compteur « saturations ». Ces valeurs sont des maxima (`menuconfig` > YetDNS) : si la mémoire manque au démarrage, les pools sont réduits plutôt que d'échouer, et le nombre de workers s'arrête avant d'épuiser la RAM interne. Le tableau de bord affiche la RAM interne libre et son minimum depuis le démarrage, et `/api/stats` ajoute `workers` et `stack_min_free` (marge de pile la plus faible) pour juger la marge avant d'augmenter ces valeurs. Les files de réception UDP (32 datagrammes) et la table de sockets lwIP sont dimensionnées dans `sdkconfig.defaults` ; les tampons TLS vont en PSRAM. Aucune supériorité de débit sur d'autres projets n'est encore démontrée par un banc comparatif.
 
 En DoH, certificats et noms sont vérifiés ; aucun repli en clair des requêtes client. L'heure SNTP et le DNS de bootstrap restent nécessaires. La résolution initiale des noms des serveurs utilise le DNS de bootstrap en clair. Pour NextDNS, renseigner `https://dns.nextdns.io/VOTRE_PROFIL` comme URL DoH. La validation DNSSEC appartient au résolveur amont ; les réponses locales n'affirment jamais AD.
 
@@ -99,27 +99,27 @@ Les annonces de découverte sont retenues et republiées après reconnexion ou r
 Dans un terminal ESP-IDF 5.5.1, pour la carte N16R8 :
 
 ```powershell
-idf.py -B build-device -D SDKCONFIG=build-device/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;boards/esp32s3-n16r8.defaults" menuconfig
+idf.py -B build-device -D SDKCONFIG=build-device/sdkconfig menuconfig
 idf.py -B build-device build
 idf.py -B build-device -p COM4 flash monitor
 ```
 
 Renseigner le Wi-Fi dans `menuconfig` et remplacer le port selon la carte. Les identifiants restent dans le dossier `build-device` ignoré par Git et dans le binaire privé. Ne pas distribuer ce binaire.
 
-Le partitionnement 0.5 prévoit deux emplacements firmware (`ota_0`, `ota_1`, 2 Mo en 16 Mo / 1,7 Mo en 8 Mo), `otadata`, une partition NVS dédiée aux réglages (`listscfg`) et deux espaces de listes (environ 6 Mo chacun en 16 Mo, 2,25 Mo en 8 Mo). Il remplace le partitionnement précédent : le passage à 0.5 se fait **une seule fois par USB**, après un effacement complet de la flash (`idf.py -B build-device -p COM4 erase-flash`), ce qui efface réglages, règles et listes. Les identifiants Wi-Fi de la compilation sont recopiés en NVS au démarrage ; les mises à jour suivantes se font sans fil.
+Le partitionnement 0.5 prévoit deux emplacements firmware (`ota_0`, `ota_1`, 2 Mo), `otadata`, une partition NVS dédiée aux réglages (`listscfg`) et deux espaces de listes (environ 6 Mo chacun). Il remplace le partitionnement précédent : le passage à 0.5 se fait **une seule fois par USB**, après un effacement complet de la flash (`idf.py -B build-device -p COM4 erase-flash`), ce qui efface réglages, règles et listes. Les identifiants Wi-Fi de la compilation sont recopiés en NVS au démarrage ; les mises à jour suivantes se font sans fil.
 
 ## Mises à jour depuis GitHub
 
 L’onglet **Mise à jour** compare la version installée à la dernière publication (« release ») du dépôt `YETDNS_UPDATE_REPO` (`rafal83/YetDNS`) via l’API GitHub, au clic ou une fois par jour (réglable). Si une version plus récente existe, le bouton **Installer la mise à jour** :
 
-1. télécharge le fichier de la release correspondant à la carte (`yetdns-esp32s3-n16r8.bin` si la compilation active la PSRAM, sinon `yetdns-esp32s3-8mb.bin`) en HTTPS avec vérification du certificat ;
+1. télécharge le fichier de la release correspondant à la carte (`yetdns-esp32s3-n16r8.bin`) en HTTPS avec vérification du certificat ;
 2. refuse un fichier qui n’est pas un firmware YetDNS ou qui n’est pas plus récent que la version installée, avant d’écrire en flash ;
 3. compare l’empreinte SHA-256 du fichier reçu à celle publiée par GitHub pour cette pièce jointe (sans empreinte, l’installation est refusée) ;
 4. l’écrit dans l’emplacement inactif, active le nouvel emplacement puis redémarre.
 
 Le nouveau firmware doit retrouver le réseau dans la minute qui suit son démarrage ; sinon, au redémarrage suivant, le chargeur de démarrage revient à la version précédente (annulation automatique). Réglages, règles, listes et statistiques sont conservés.
 
-Publier une version : créer un tag `vX.Y.Z` (`git tag v0.5.0 && git push origin v0.5.0`). Le workflow `.github/workflows/release.yml` compile les deux profils sans identifiants Wi-Fi et joint à la release `yetdns-esp32s3-8mb.bin`, `yetdns-esp32s3-n16r8.bin` (fichiers de mise à jour) et leurs variantes `-first-flash.bin` (image complète à écrire à l’adresse 0x0 pour une première installation). Seules les publications officielles (ni brouillons ni pré-versions) sont proposées. Une carte flashée depuis un poste de développement dont la version n’est pas de la forme `X.Y.Z` se voit proposer n’importe quelle release. La mise à jour n’est pas signée : elle repose sur HTTPS vers GitHub, donc sur le contrôle du dépôt.
+Publier une version : créer un tag `vX.Y.Z` (`git tag v0.5.0 && git push origin v0.5.0`). Le workflow `.github/workflows/release.yml` compile le firmware sans identifiants Wi-Fi et joint à la release `yetdns-esp32s3-n16r8.bin` (fichier de mise à jour) et sa variante `-first-flash.bin` (image complète à écrire à l’adresse 0x0 pour une première installation). Seules les publications officielles (ni brouillons ni pré-versions) sont proposées. Une carte flashée depuis un poste de développement dont la version n’est pas de la forme `X.Y.Z` se voit proposer n’importe quelle release. La mise à jour n’est pas signée : elle repose sur HTTPS vers GitHub, donc sur le contrôle du dépôt.
 
 ## API locale
 

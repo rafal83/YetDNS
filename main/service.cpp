@@ -4,6 +4,7 @@
 #include "stats.hpp"
 #include <algorithm>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <new>
@@ -78,8 +79,12 @@ struct Job {
     int64_t started{};
     bool cacheable{}, success{};
 };
-static Job *jobs; // PSRAM when available: a pool of 16 would otherwise cost 70 KiB of internal RAM
+static Job *jobs; // always PSRAM: each job is 4.4 KiB, so a pool of 64 would be 280 KiB of internal RAM
 static QueueHandle_t free_jobs, work_jobs, done_jobs;
+constexpr size_t max_workers = 8, worker_stack = 10240, server_stack = 12288, internal_reserve = 112 * 1024;
+static TaskHandle_t worker_tasks[max_workers], server_task;
+static size_t worker_count, pending_count, cache_count;
+static_assert(CONFIG_YETDNS_WORKERS <= max_workers, "raise max_workers");
 struct Client {
     int fd{-1}; uint32_t generation{};
     sockaddr_in peer{};
@@ -401,23 +406,44 @@ esp_err_t service_start() {
     if (!blocklist.load(list_start, list_end - list_start)) return ESP_ERR_INVALID_CRC;
     ESP_ERROR_CHECK(lists_init());
     ESP_LOGW("yetdns", "%lu exact domains in flash; Wi-Fi power save disabled", (unsigned long)blocklist.count());
-    // Allocate once at startup; leave internal RAM to Wi-Fi/TLS when PSRAM is enabled.
-    auto *entries = static_cast<CacheEntry *>(heap_caps_calloc(CONFIG_YETDNS_CACHE_ENTRIES, sizeof(CacheEntry), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!entries) entries = static_cast<CacheEntry *>(heap_caps_calloc(CONFIG_YETDNS_CACHE_ENTRIES, sizeof(CacheEntry), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    // Cache and job pool live in PSRAM only: internal RAM is the scarce resource (Wi-Fi, TLS, task stacks).
+    // The configured sizes are maxima; a pool that does not fit is halved rather than failing the boot.
+    size_t entry_count = CONFIG_YETDNS_CACHE_ENTRIES;
+    CacheEntry *entries;
+    while (!(entries = static_cast<CacheEntry *>(heap_caps_calloc(entry_count, sizeof(CacheEntry), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT))) && entry_count >= 16)
+        entry_count /= 2;
     if (!entries) return ESP_ERR_NO_MEM;
-    cache = Cache(entries, CONFIG_YETDNS_CACHE_ENTRIES);
-    void *job_memory = heap_caps_malloc(CONFIG_YETDNS_PENDING * sizeof(Job), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!job_memory) job_memory = heap_caps_malloc(CONFIG_YETDNS_PENDING * sizeof(Job), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    auto *hashes = static_cast<uint32_t *>(heap_caps_malloc(entry_count * sizeof(uint32_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cache = Cache(entries, entry_count, hashes); // without the index every lookup would scan PSRAM
+    size_t job_count = CONFIG_YETDNS_PENDING;
+    void *job_memory;
+    while (!(job_memory = heap_caps_malloc(job_count * sizeof(Job), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)) && job_count >= 8)
+        job_count /= 2;
     if (!job_memory) return ESP_ERR_NO_MEM;
-    jobs = new (job_memory) Job[CONFIG_YETDNS_PENDING];
-    free_jobs = xQueueCreate(CONFIG_YETDNS_PENDING, sizeof(Job *));
-    work_jobs = xQueueCreate(CONFIG_YETDNS_PENDING, sizeof(Job *));
-    done_jobs = xQueueCreate(CONFIG_YETDNS_PENDING, sizeof(Job *));
+    jobs = new (job_memory) Job[job_count];
+    free_jobs = xQueueCreate(job_count, sizeof(Job *));
+    work_jobs = xQueueCreate(job_count, sizeof(Job *));
+    done_jobs = xQueueCreate(job_count, sizeof(Job *));
     if (!free_jobs || !work_jobs || !done_jobs) return ESP_ERR_NO_MEM;
-    for (int i = 0; i < CONFIG_YETDNS_PENDING; ++i) { Job *ptr = &jobs[i]; xQueueSend(free_jobs, &ptr, 0); }
-    for (int i = 0; i < CONFIG_YETDNS_WORKERS; ++i)
-        if (xTaskCreate(worker, "dns_upstream", 10240, nullptr, 5, nullptr) != pdPASS) return ESP_ERR_NO_MEM;
-    if (xTaskCreate(server, "dns_server", 12288, nullptr, 8, nullptr) != pdPASS) return ESP_ERR_NO_MEM;
+    for (size_t i = 0; i < job_count; ++i) { Job *ptr = &jobs[i]; xQueueSend(free_jobs, &ptr, 0); }
+    // Workers are the main internal-RAM cost. Stop adding them before the tasks started later (admin, MQTT,
+    // list updates, OTA) and TLS handshakes would be starved; one worker is always kept.
+    for (; worker_count < CONFIG_YETDNS_WORKERS; ++worker_count) {
+        if (worker_count && heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) < internal_reserve + worker_stack) break;
+        if (xTaskCreate(worker, "dns_upstream", worker_stack, nullptr, 5, &worker_tasks[worker_count]) != pdPASS) break;
+    }
+    if (!worker_count) return ESP_ERR_NO_MEM;
+    if (xTaskCreate(server, "dns_server", server_stack, nullptr, 8, &server_task) != pdPASS) return ESP_ERR_NO_MEM;
+    pending_count = job_count; cache_count = entry_count;
+    ESP_LOGW("yetdns", "%u upstream workers, %u pending jobs, %u cache entries, internal RAM free %u",
+             unsigned(worker_count), unsigned(job_count), unsigned(entry_count),
+             unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
     return ESP_OK;
+}
+ServiceCapacity service_capacity() {
+    size_t low = SIZE_MAX;
+    for (size_t i = 0; i < worker_count; ++i) low = std::min<size_t>(low, uxTaskGetStackHighWaterMark(worker_tasks[i]));
+    if (server_task) low = std::min<size_t>(low, uxTaskGetStackHighWaterMark(server_task));
+    return {worker_count, pending_count, cache_count, low == SIZE_MAX ? 0 : low};
 }
 } // namespace yetdns

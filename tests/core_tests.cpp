@@ -43,6 +43,22 @@ int main(int argc, char **argv) {
     auto no_do = a; no_do[no_do.size() - 4] = 0;
     assert(!cache.get(no_do.data(), no_do.size(), cached, 111));
     cache.clear(); assert(!cache.get(a.data(), a.size(), cached, 111));
+    {   // The hash index answers exactly like the plain scan, including eviction and clear.
+        CacheEntry slots[2]{}; uint32_t hashes[2]; Cache fast(slots, 2, hashes);
+        auto b = query("b.example", 1, true), c = query("c.example", 1, true);
+        uint8_t ra[packet_max], rb[packet_max], rc[packet_max];
+        size_t na = reply(a.data(), a.size(), ra, 0, nullptr, true), nb = reply(b.data(), b.size(), rb, 0, nullptr, true),
+               nc = reply(c.data(), c.size(), rc, 0, nullptr, true);
+        assert(!fast.get(a.data(), a.size(), cached, 100));
+        fast.put(a.data(), a.size(), ra, na, 100); fast.put(b.data(), b.size(), rb, nb, 100);
+        assert(fast.get(a.data(), a.size(), cached, 110) == na && fast.get(b.data(), b.size(), cached, 110) == nb);
+        assert(!fast.get(c.data(), c.size(), cached, 110));
+        fast.put(c.data(), c.size(), rc, nc, 100);   // evicts the oldest entry (a)
+        assert(!fast.get(a.data(), a.size(), cached, 110) && fast.get(c.data(), c.size(), cached, 110) == nc);
+        auto cd2 = c; cd2[3] |= 0x10;
+        assert(!fast.get(cd2.data(), cd2.size(), cached, 110));
+        fast.clear(); assert(!fast.get(b.data(), b.size(), cached, 110) && !fast.get(c.data(), c.size(), cached, 110));
+    }
     auto aaaa = query("ads.example", 28);
     assert(parse_query(aaaa.data(), aaaa.size(), q));
     n = reply(aaaa.data(), aaaa.size(), response, 0, nullptr, true);
