@@ -176,6 +176,18 @@ static esp_err_t clear_cache(httpd_req_t *req) {
     if (!authorized(req)) return ESP_OK;
     flush_cache = true; return httpd_resp_sendstr(req, "{}");
 }
+static void restart_now(void *) { esp_restart(); }
+static esp_err_t restart(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    // The reset is deferred so the reply reaches the browser first.
+    static esp_timer_handle_t timer;
+    if (!timer) {
+        esp_timer_create_args_t args{}; args.callback = restart_now; args.name = "restart";
+        if (esp_timer_create(&args, &timer) != ESP_OK) return error(req, "500 Internal Server Error", "Timer unavailable");
+    }
+    esp_timer_start_once(timer, 1000000);
+    return httpd_resp_sendstr(req, "{}");
+}
 static esp_err_t get_rules(httpd_req_t *req) {
     if (!authorized(req)) return ESP_OK;
     auto snapshot = std::unique_ptr<Rules>(new (std::nothrow) Rules{});
@@ -576,6 +588,7 @@ esp_err_t admin_start() {
         {"/api/stats", HTTP_GET, get_stats},
         {"/api/settings", HTTP_POST, settings},
         {"/api/cache/flush", HTTP_POST, clear_cache},
+        {"/api/restart", HTTP_POST, restart},
         {"/api/rules", HTTP_GET, get_rules},
         {"/api/rules", HTTP_PUT, put_rules},
         {"/api/update", HTTP_GET, get_update},
