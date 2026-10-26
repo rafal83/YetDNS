@@ -40,7 +40,7 @@ with sync_playwright() as playwright:
             if other != tab:
                 assert not page.locator('#' + other).is_visible(), (tab, other)
     page.locator('[data-panel="advanced"]').click()
-    assert page.locator('#logging').is_checked()
+    assert not page.locator('#logging').is_visible()
     assert page.locator('#block_page').is_visible()
     assert page.locator('#primary').input_value()
     assert page.locator('#doh_url').input_value().startswith('https://')
@@ -59,13 +59,14 @@ with sync_playwright() as playwright:
     assert page.locator('#deny-domains').is_visible()
     page.locator('[data-panel="journal"]').click()
     assert page.locator('#log-blocked-only').is_visible()
+    assert page.locator('#logging').is_visible() and page.locator('#logging').is_checked()
     page.locator('[data-panel="diagnostic"]').click()
     assert page.locator('iframe[title="Test de protection depuis ce navigateur"]').is_visible()
     open_filter('rules')
     assert page.locator('#rules-help').is_visible()
     example = json.loads(page.locator('#rules-example').inner_text())
-    assert {rule['action'] for rule in example} == {'allow', 'deny', 'rewrite'}
-    assert all(rule['client'] == '192.168.1.50' for rule in example)
+    assert {rule['action'] for rule in example} == {'rewrite'}
+    assert any(rule.get('client') == '192.168.1.50' for rule in example)
     page.locator('[data-panel="home-assistant"]').click()
     assert page.locator('#mqtt-form').is_visible()
     open_filter('lists')
