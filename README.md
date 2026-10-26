@@ -1,5 +1,11 @@
 # YetDNS sur ESP32
 
+[![CI](https://github.com/rafal83/YetDNS/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rafal83/YetDNS/actions/workflows/ci.yml)
+[![Release](https://github.com/rafal83/YetDNS/actions/workflows/release.yml/badge.svg)](https://github.com/rafal83/YetDNS/actions/workflows/release.yml)
+[![Dernière version](https://img.shields.io/github/v/release/rafal83/YetDNS?label=version)](https://github.com/rafal83/YetDNS/releases/latest)
+[![ESP-IDF](https://img.shields.io/badge/ESP--IDF-5.5.1-red)](https://docs.espressif.com/projects/esp-idf/en/v5.5.1/)
+[![Carte](https://img.shields.io/badge/carte-ESP32--S3%20N16R8-blue)](#)
+
 Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Seule cette carte (**ESP32-S3 N16R8**) est supportée. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
 
 ## Utilisation
