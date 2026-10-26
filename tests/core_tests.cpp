@@ -85,7 +85,35 @@ int main(int argc, char **argv) {
     assert(!cache_ttl(response, n, ttl));
     n = reply(a.data(), a.size(), response, 0, nullptr, true);
     write32(response + q.end + 6, 0); assert(!cache_ttl(response, n, ttl));
-    n = reply(a.data(), a.size(), response, 3); assert(!cache_ttl(response, n, ttl));
+    n = reply(a.data(), a.size(), response, 3); assert(!cache_ttl(response, n, ttl)); // negative without SOA
+    {   // Negative answers (RFC 2308) live min(SOA TTL, SOA MINIMUM, 300 s) and need a SOA to say so.
+        auto negative = [&](const std::vector<uint8_t> &asked, uint8_t rcode, uint32_t soa_ttl, uint32_t minimum) {
+            size_t len = reply(asked.data(), asked.size(), response, rcode);
+            write16(response + 8, 1);
+            const uint8_t record[16] = {0xc0, 0x0c, 0, 6, 0, 1, 0, 0, 0, 0, 0, 24, 0xc0, 0x0c, 0xc0, 0x0c};
+            std::memcpy(response + len, record, sizeof(record)); write32(response + len + 6, soa_ttl);
+            std::memset(response + len + sizeof(record), 0, 20); write32(response + len + sizeof(record) + 16, minimum);
+            return len + sizeof(record) + 20;
+        };
+        n = negative(a, 3, 900, 60); assert(cache_ttl(response, n, ttl) && ttl == 60);
+        n = negative(a, 3, 900, 1000); assert(cache_ttl(response, n, ttl) && ttl == 300);
+        n = negative(a, 0, 20, 1000); assert(cache_ttl(response, n, ttl) && ttl == 20); // NODATA
+        n = negative(a, 3, 0, 60); assert(!cache_ttl(response, n, ttl));
+        n = negative(a, 2, 900, 60); assert(!cache_ttl(response, n, ttl)); // SERVFAIL is never cached
+        n = negative(a, 3, 900, 60); write16(response + n - 36 + 10, 23); assert(!cache_ttl(response, n, ttl));
+        n = reply(a.data(), a.size(), response, 0); assert(!cache_ttl(response, n, ttl)); // NODATA without SOA
+        for (bool hashed : {false, true}) {
+            CacheEntry slots[2]{}; uint32_t index[2]; Cache negatives(slots, 2, hashed ? index : nullptr);
+            auto b = query("b.example", 1, true);
+            size_t na = negative(a, 3, 900, 60); std::vector<uint8_t> ra(response, response + na);
+            size_t nb = negative(b, 0, 900, 60); std::vector<uint8_t> rb(response, response + nb);
+            negatives.put(a.data(), a.size(), ra.data(), na, 100); negatives.put(a.data(), a.size(), ra.data(), na, 100);
+            negatives.put(b.data(), b.size(), rb.data(), nb, 100); // the repeated put left a free slot for b
+            assert(negatives.get(a.data(), a.size(), cached, 130) == na && read32(cached + na - 36 + 6) == 870);
+            assert(negatives.get(b.data(), b.size(), cached, 130) == nb && (cached[3] & 15) == 0);
+            assert(!negatives.get(a.data(), a.size(), cached, 161));
+        }
+    }
     // CNAME target in RDATA, with compression allowed. A blocked target triggers filtering.
     auto alias = query("www.example");
     n = reply(alias.data(), alias.size(), response, 0, nullptr, true);

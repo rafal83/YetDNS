@@ -40,7 +40,7 @@ config YETDNS_PENDING
 config YETDNS_CACHE_ENTRIES
     int "DNS cache entries (about 1.6 KiB of PSRAM per entry)"
     range 8 2048
-    default 512
+    default 1024
 config YETDNS_RATE_LIMIT
     int "Per IPv4 client queries/second (0 disables)"
     range 0 1000

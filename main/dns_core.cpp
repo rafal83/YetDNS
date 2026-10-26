@@ -133,7 +133,8 @@ size_t reply(const uint8_t *query, size_t n, uint8_t *out, uint8_t rcode,
     }
     return end;
 }
-static bool walk_ttls(uint8_t *p, const uint8_t *cp, size_t n, uint32_t age, uint32_t &minimum) {
+// A SOA also bounds the lifetime with its MINIMUM field (RFC 2308 negative TTL); `soa` reports that one was seen.
+static bool walk_ttls(uint8_t *p, const uint8_t *cp, size_t n, uint32_t age, uint32_t &minimum, bool *soa = nullptr) {
     if (n < 12 || read16(cp + 4) != 1) return false;
     size_t pos = 12;
     if (!name_at(cp, n, pos) || pos + 4 > n) return false;
@@ -143,21 +144,33 @@ static bool walk_ttls(uint8_t *p, const uint8_t *cp, size_t n, uint32_t age, uin
     for (uint32_t i = 0; i < records; ++i) {
         if (!name_at(cp, n, pos) || pos + 10 > n) return false;
         uint16_t type = read16(cp + pos), len = read16(cp + pos + 8);
+        if (pos + 10 + len > n) return false;
         if (type == 250 || type == 24) return false; // authenticated messages cannot be aged
         if (type != 41) {
             uint32_t ttl = read32(cp + pos + 4);
             minimum = std::min(minimum, ttl);
             if (p) write32(p + pos + 4, ttl > age ? ttl - age : 0);
         }
+        if (type == 6) {
+            size_t cursor = pos + 10;
+            if (!name_at(cp, n, cursor) || !name_at(cp, n, cursor) || cursor + 20 != pos + 10 + len) return false;
+            minimum = std::min(minimum, read32(cp + cursor + 16));
+            if (soa) *soa = true;
+        }
         pos += 10 + len;
-        if (pos > n) return false;
     }
     return pos == n;
 }
+constexpr uint32_t positive_ttl_max = 3600, negative_ttl_max = 300;
+// Positive answers and negative ones (NODATA, NXDOMAIN) are cacheable; a negative answer needs a SOA to say for how long.
 bool cache_ttl(const uint8_t *p, size_t n, uint32_t &ttl) {
-    ttl = 3600;
-    if (n < 12 || (read16(p + 2) & 0x020f) || !read16(p + 6)) return false;
-    return walk_ttls(nullptr, p, n, 0, ttl) && ttl;
+    ttl = positive_ttl_max;
+    if (n < 12 || (read16(p + 2) & 0x0200)) return false;
+    uint8_t rcode = p[3] & 15;
+    if (rcode != 0 && rcode != 3) return false;
+    bool negative = rcode == 3 || !read16(p + 6), soa = false;
+    if (negative) ttl = negative_ttl_max;
+    return walk_ttls(nullptr, p, n, 0, ttl, &soa) && ttl && (!negative || soa);
 }
 bool age_ttls(uint8_t *p, size_t n, uint32_t age) {
     uint32_t unused = UINT32_MAX;
@@ -275,11 +288,20 @@ void Cache::put(const uint8_t *query, size_t n, const uint8_t *response, size_t 
     Question q; uint32_t ttl;
     if (rn > cache_packet_max || !parse_query(query, n, q) || !q.cacheable ||
         !matching_response(response, rn, query, n) || !cache_ttl(response, rn, ttl) || !count_) return;
-    size_t slot = next_++ % count_;
+    uint32_t hash = hashes_ ? key_hash(query, n) : 0;
+    // Refresh the entry holding the same question (concurrent misses), else take a free slot, else evict the oldest.
+    size_t slot = count_, free_slot = count_;
+    for (size_t i = 0; i < count_; ++i) {
+        if (hashes_ && hashes_[i] != hash) { if (!hashes_[i] && free_slot == count_) free_slot = i; continue; }
+        auto &old = entries_[i];
+        if (!old.response_n) { if (free_slot == count_) free_slot = i; continue; }
+        if (old.query_n == n && !std::memcmp(old.key + 2, query + 2, n - 2)) { slot = i; break; }
+    }
+    if (slot == count_) slot = free_slot != count_ ? free_slot : next_++ % count_;
     auto &e = entries_[slot];
     e.inserted = now; e.lifetime = ttl; e.query_n = n; e.response_n = rn;
     std::memcpy(e.key, query, n); std::memcpy(e.response, response, rn);
-    if (hashes_) hashes_[slot] = key_hash(query, n);
+    if (hashes_) hashes_[slot] = hash;
 }
 void Cache::clear() {
     for (size_t i = 0; i < count_; ++i) { entries_[i].response_n = 0; if (hashes_) hashes_[i] = 0; }

@@ -81,6 +81,7 @@ struct Job {
 };
 static Job *jobs; // always PSRAM: each job is 4.4 KiB, so a pool of 64 would be 280 KiB of internal RAM
 static QueueHandle_t free_jobs, work_jobs, done_jobs;
+constexpr uint32_t primary_wait_ms = 800;
 constexpr size_t max_workers = 8, worker_stack = 10240, server_stack = 12288, internal_reserve = 112 * 1024;
 static TaskHandle_t worker_tasks[max_workers], server_task;
 static size_t worker_count, pending_count, cache_count;
@@ -232,7 +233,8 @@ static void worker(void *) {
             }
             } else {
             if (http) { esp_http_client_cleanup(http); http = nullptr; }
-            rn = udp_resolve(settings.primary, job->packet, job->n, response, settings.timeout_ms);
+            // A dead primary must not hold the worker for two full timeouts: give it a shorter wait before failing over.
+            rn = udp_resolve(settings.primary, job->packet, job->n, response, std::min<uint32_t>(settings.timeout_ms, primary_wait_ms));
             if (!rn || (read16(response + 2) & 15) == 2)
                 rn = udp_resolve(settings.secondary, job->packet, job->n, response, settings.timeout_ms);
             }
