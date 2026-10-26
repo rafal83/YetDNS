@@ -107,8 +107,9 @@ int main(int argc, char **argv) {
             auto b = query("b.example", 1, true);
             size_t na = negative(a, 3, 900, 60); std::vector<uint8_t> ra(response, response + na);
             size_t nb = negative(b, 0, 900, 60); std::vector<uint8_t> rb(response, response + nb);
-            negatives.put(a.data(), a.size(), ra.data(), na, 100); negatives.put(a.data(), a.size(), ra.data(), na, 100);
-            negatives.put(b.data(), b.size(), rb.data(), nb, 100); // the repeated put left a free slot for b
+            assert(negatives.put(a.data(), a.size(), ra.data(), na, 100) && negatives.put(a.data(), a.size(), ra.data(), na, 100));
+            assert(negatives.put(b.data(), b.size(), rb.data(), nb, 100)); // the repeated put left a free slot for b
+            assert(!negatives.put(b.data(), b.size(), ra.data(), na, 100)); // answer to another question: refused
             assert(negatives.get(a.data(), a.size(), cached, 130) == na && read32(cached + na - 36 + 6) == 870);
             assert(negatives.get(b.data(), b.size(), cached, 130) == nb && (cached[3] & 15) == 0);
             assert(!negatives.get(a.data(), a.size(), cached, 161));

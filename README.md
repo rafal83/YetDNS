@@ -131,7 +131,7 @@ Publier une version : créer un tag `vX.Y.Z` (`git tag v0.5.0 && git push origin
 
 | Route | Méthodes | Usage |
 |---|---|---|
-| `/api/stats` | GET | État DNS, mémoire, heure synchronisée |
+| `/api/stats` | GET | État DNS, mémoire, heure synchronisée ; `uncacheable` (requêtes EDNS à options, jamais cachées) et `unstored` (réponses amont refusées par le cache) expliquent un taux de cache bas |
 | `/api/settings` | POST | `{"blocking":true}` |
 | `/api/config` | GET / PUT | Réglages avancés, PUT partiel accepté |
 | `/api/lists` | GET / PUT | Sources, calendrier, résultat et progression |

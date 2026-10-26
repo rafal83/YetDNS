@@ -296,6 +296,7 @@ static void process(int udp, int tcp, uint32_t generation, const sockaddr_in &pe
                 job->peer = peer; job->tcp = tcp; job->generation = generation; job->started = start;
                 if (tcp >= 0) clients[tcp].busy = true;
                 xQueueSend(work_jobs, &job, 0); ++stats.forwarded;
+                if (!q.cacheable) ++stats.uncacheable;
                 return;
             }
             ++stats.overload; rn = reply(query, n, response, 2); result = "overload";
@@ -338,7 +339,8 @@ static void server(void *) {
                     job->cacheable = false; ++stats.blocked; top_block(q.name, job->peer.sin_addr.s_addr);
                 }
             }
-            if (job->success && job->cacheable) cache.put(job->original, job->original_n, job->packet, job->n, seconds_now());
+            if (job->success && job->cacheable && !cache.put(job->original, job->original_n, job->packet, job->n, seconds_now()))
+                ++stats.unstored;
             if (!job->success) ++stats.errors;
             deliver(udp, job->tcp, job->generation, job->peer, job->original, job->original_n, job->packet, job->n);
             record(q, job->peer.sin_addr.s_addr, denied ? "blocked" : job->success ? "forwarded" : "error", job->started);

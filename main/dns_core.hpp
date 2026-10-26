@@ -66,7 +66,7 @@ public:
         if (hashes_) for (size_t i = 0; i < count_; ++i) hashes_[i] = 0;
     }
     size_t get(const uint8_t *query, size_t n, uint8_t *out, uint32_t now);
-    void put(const uint8_t *query, size_t n, const uint8_t *response, size_t rn, uint32_t now);
+    bool put(const uint8_t *query, size_t n, const uint8_t *response, size_t rn, uint32_t now); // false: not cacheable
     void clear();
 };
 } // namespace yetdns

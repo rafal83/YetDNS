@@ -284,10 +284,10 @@ size_t Cache::get(const uint8_t *query, size_t n, uint8_t *out, uint32_t now) {
     }
     return 0;
 }
-void Cache::put(const uint8_t *query, size_t n, const uint8_t *response, size_t rn, uint32_t now) {
+bool Cache::put(const uint8_t *query, size_t n, const uint8_t *response, size_t rn, uint32_t now) {
     Question q; uint32_t ttl;
     if (rn > cache_packet_max || !parse_query(query, n, q) || !q.cacheable ||
-        !matching_response(response, rn, query, n) || !cache_ttl(response, rn, ttl) || !count_) return;
+        !matching_response(response, rn, query, n) || !cache_ttl(response, rn, ttl) || !count_) return false;
     uint32_t hash = hashes_ ? key_hash(query, n) : 0;
     // Refresh the entry holding the same question (concurrent misses), else take a free slot, else evict the oldest.
     size_t slot = count_, free_slot = count_;
@@ -302,6 +302,7 @@ void Cache::put(const uint8_t *query, size_t n, const uint8_t *response, size_t 
     e.inserted = now; e.lifetime = ttl; e.query_n = n; e.response_n = rn;
     std::memcpy(e.key, query, n); std::memcpy(e.response, response, rn);
     if (hashes_) hashes_[slot] = hash;
+    return true;
 }
 void Cache::clear() {
     for (size_t i = 0; i < count_; ++i) { entries_[i].response_n = 0; if (hashes_) hashes_[i] = 0; }

@@ -9,6 +9,9 @@
 namespace yetdns {
 struct Counters {
     std::atomic<uint32_t> queries{}, blocked{}, cached{}, forwarded{}, errors{}, limited{}, overload{};
+    // Why forwarded answers miss the cache next time: the query carries EDNS options or is oversized, or the
+    // response is refused (SERVFAIL, truncated, TTL 0, negative without SOA).
+    std::atomic<uint32_t> uncacheable{}, unstored{};
 };
 struct LogEntry { char domain[254]; uint32_t client, elapsed_us; uint16_t type; char result[12]; };
 extern Counters stats;

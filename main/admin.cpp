@@ -142,6 +142,8 @@ static esp_err_t get_stats(httpd_req_t *req) {
     cJSON_AddNumberToObject(json, "blocked", stats.blocked.load());
     cJSON_AddNumberToObject(json, "cached", stats.cached.load());
     cJSON_AddNumberToObject(json, "forwarded", stats.forwarded.load());
+    cJSON_AddNumberToObject(json, "uncacheable", stats.uncacheable.load());
+    cJSON_AddNumberToObject(json, "unstored", stats.unstored.load());
     cJSON_AddNumberToObject(json, "errors", stats.errors.load());
     cJSON_AddNumberToObject(json, "rate_limited", stats.limited.load());
     cJSON_AddNumberToObject(json, "overload", stats.overload.load());
