@@ -21,15 +21,17 @@ with sync_playwright() as playwright:
         page.wait_for_timeout(200)
     else:
         raise AssertionError('Dashboard did not load its live state')
-    tabs = ['filtering', 'advanced', 'journal', 'diagnostic', 'home-assistant']
+    tabs = ['live', 'filtering', 'advanced', 'journal', 'diagnostic', 'home-assistant']
     def open_filter(group):
         page.locator('[data-panel="filtering"]').click()
         detail = page.locator('#filter-' + group)
         if detail.get_attribute('open') is None:
             detail.locator(':scope > summary').click()
     def check_menu():
-        tops = [page.locator('[data-panel="' + tab + '"]').bounding_box()['y'] for tab in tabs]
-        assert max(tops) - min(tops) < 1, tops
+        boxes = [page.locator('[data-panel="' + tab + '"]').bounding_box() for tab in tabs]
+        row = max(b['y'] for b in boxes) - min(b['y'] for b in boxes) < 1
+        column = max(b['x'] for b in boxes) - min(b['x'] for b in boxes) < 1
+        assert row or column, boxes
     check_menu()
     for tab in tabs:
         page.locator('[data-panel="' + tab + '"]').click()
