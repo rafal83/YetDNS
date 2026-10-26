@@ -1,4 +1,4 @@
-# YetDNS 0.6 sur ESP32
+# YetDNS sur ESP32
 
 Filtre DNS local en C++ / **ESP-IDF 5.5.1**, développé pour un **ESP32-S3 Wi-Fi, flash 16 Mo et PSRAM 8 Mo**. Seule cette carte (**ESP32-S3 N16R8**) est supportée. Administration locale **sans jeton ni connexion**, journal activé par défaut, listes autonomes et découverte MQTT Home Assistant.
 
