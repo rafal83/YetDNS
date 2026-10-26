@@ -1,5 +1,8 @@
 name: YetDNS
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
 jobs:
   core:
     runs-on: ubuntu-latest
