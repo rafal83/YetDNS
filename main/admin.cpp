@@ -137,6 +137,9 @@ static esp_err_t get_stats(httpd_req_t *req) {
     auto *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "version", esp_app_get_description()->version);
     cJSON_AddStringToObject(json, "transport", doh_enabled.load() ? "DoH" : "UDP + TCP fallback");
+    UpdateInfo update; update_snapshot(update);
+    cJSON_AddBoolToObject(json, "update_available", update.available);
+    cJSON_AddStringToObject(json, "update_latest", update.latest); cJSON_AddStringToObject(json, "update_phase", update.phase);
     cJSON_AddBoolToObject(json, "blocking", blocking.load());
     cJSON_AddNumberToObject(json, "domains", filter_count());
     cJSON_AddNumberToObject(json, "queries", stats.queries.load());
