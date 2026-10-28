@@ -61,7 +61,10 @@ class Cache {
     CacheEntry *entries_;
     uint32_t *hashes_;
     size_t count_, next_{};
+    uint32_t live_evictions_{};
 public:
+    // Entries overwritten while still within their TTL: a sign the cache is too small for the traffic.
+    uint32_t live_evictions() const { return live_evictions_; }
     Cache(CacheEntry *entries, size_t count, uint32_t *hashes = nullptr) : entries_(entries), hashes_(hashes), count_(count) {
         if (hashes_) for (size_t i = 0; i < count_; ++i) hashes_[i] = 0;
     }

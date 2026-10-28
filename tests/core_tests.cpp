@@ -53,7 +53,9 @@ int main(int argc, char **argv) {
         fast.put(a.data(), a.size(), ra, na, 100); fast.put(b.data(), b.size(), rb, nb, 100);
         assert(fast.get(a.data(), a.size(), cached, 110) == na && fast.get(b.data(), b.size(), cached, 110) == nb);
         assert(!fast.get(c.data(), c.size(), cached, 110));
-        fast.put(c.data(), c.size(), rc, nc, 100);   // evicts the oldest entry (a)
+        assert(fast.live_evictions() == 0);
+        fast.put(c.data(), c.size(), rc, nc, 100);   // evicts the oldest entry (a), still within its TTL
+        assert(fast.live_evictions() == 1);
         assert(!fast.get(a.data(), a.size(), cached, 110) && fast.get(c.data(), c.size(), cached, 110) == nc);
         auto cd2 = c; cd2[3] |= 0x10;
         assert(!fast.get(cd2.data(), cd2.size(), cached, 110));

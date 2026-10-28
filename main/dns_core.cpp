@@ -297,7 +297,11 @@ bool Cache::put(const uint8_t *query, size_t n, const uint8_t *response, size_t 
         if (!old.response_n) { if (free_slot == count_) free_slot = i; continue; }
         if (old.query_n == n && !std::memcmp(old.key + 2, query + 2, n - 2)) { slot = i; break; }
     }
-    if (slot == count_) slot = free_slot != count_ ? free_slot : next_++ % count_;
+    if (slot == count_) {
+        slot = free_slot != count_ ? free_slot : next_++ % count_;
+        const auto &victim = entries_[slot];
+        if (victim.response_n && now - victim.inserted < victim.lifetime) ++live_evictions_;
+    }
     auto &e = entries_[slot];
     e.inserted = now; e.lifetime = ttl; e.query_n = n; e.response_n = rn;
     std::memcpy(e.key, query, n); std::memcpy(e.response, response, rn);

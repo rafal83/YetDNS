@@ -5,6 +5,7 @@
 #include "ha_mqtt.hpp"
 #include "stats.hpp"
 #include "update.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -157,9 +158,12 @@ static esp_err_t get_stats(httpd_req_t *req) {
     auto capacity = service_capacity();
     cJSON_AddNumberToObject(json, "internal_heap_min", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(json, "cache_capacity", capacity.cache_entries);
+    cJSON_AddNumberToObject(json, "cache_live_evictions", capacity.cache_live_evictions);
     cJSON_AddNumberToObject(json, "pending_capacity", capacity.pending);
     cJSON_AddNumberToObject(json, "workers", capacity.workers);
-    cJSON_AddNumberToObject(json, "stack_min_free", capacity.stack_min_free);
+    cJSON_AddNumberToObject(json, "stack_min_free", std::min(capacity.worker_stack_min_free, capacity.server_stack_min_free));
+    cJSON_AddNumberToObject(json, "worker_stack_min_free", capacity.worker_stack_min_free);
+    cJSON_AddNumberToObject(json, "server_stack_min_free", capacity.server_stack_min_free);
     cJSON_AddBoolToObject(json, "query_logging", query_logging.load());
     cJSON_AddBoolToObject(json, "log_blocked_only", log_blocked_only.load());
     return json_send(req, json);

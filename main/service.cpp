@@ -336,7 +336,8 @@ static void server(void *) {
                     job->success = false; job->n = reply(job->original, job->original_n, job->packet, 2);
                 } else if (denied) {
                     job->n = blocked_reply(job->original, job->original_n, job->packet);
-                    job->cacheable = false; ++stats.blocked; top_block(q.name, job->peer.sin_addr.s_addr);
+                    // Already counted as forwarded when queued; count it once, as blocked.
+                    job->cacheable = false; ++stats.blocked; --stats.forwarded; top_block(q.name, job->peer.sin_addr.s_addr);
                 }
             }
             if (job->success && job->cacheable && !cache.put(job->original, job->original_n, job->packet, job->n, seconds_now()))
@@ -445,9 +446,9 @@ esp_err_t service_start() {
     return ESP_OK;
 }
 ServiceCapacity service_capacity() {
-    size_t low = SIZE_MAX;
-    for (size_t i = 0; i < worker_count; ++i) low = std::min<size_t>(low, uxTaskGetStackHighWaterMark(worker_tasks[i]));
-    if (server_task) low = std::min<size_t>(low, uxTaskGetStackHighWaterMark(server_task));
-    return {worker_count, pending_count, cache_count, low == SIZE_MAX ? 0 : low};
+    size_t workers_low = SIZE_MAX, server_low = server_task ? uxTaskGetStackHighWaterMark(server_task) : 0;
+    for (size_t i = 0; i < worker_count; ++i) workers_low = std::min<size_t>(workers_low, uxTaskGetStackHighWaterMark(worker_tasks[i]));
+    if (workers_low == SIZE_MAX) workers_low = 0;
+    return {worker_count, pending_count, cache_count, workers_low, server_low, cache.live_evictions()};
 }
 } // namespace yetdns
